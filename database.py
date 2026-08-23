@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS tracks (
     watermark_hash  TEXT,                    -- Layer-1 SHA-256 (Dateiname)
     fitness_score   REAL,                    -- optional (falls im Namen kodiert)
     status          TEXT    NOT NULL DEFAULT 'available',  -- available|leased|exclusive_sold
-    created_at      TEXT    NOT NULL
+    created_at      TEXT    NOT NULL,
+    user_id         INTEGER REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS exports (
@@ -83,6 +84,15 @@ CREATE TABLE IF NOT EXISTS generations (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     source      TEXT,                            -- z.B. erzeugte Datei / Lauf-Info
     created_at  TEXT NOT NULL                    -- ISO-Zeit (lokal)
+);
+
+-- Quota ledger: one row per user per calendar day, tracks saves (not generations).
+CREATE TABLE IF NOT EXISTS quota_ledger (
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    date           TEXT    NOT NULL,
+    daily_saves    INTEGER NOT NULL DEFAULT 0,
+    monthly_saves  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, date)
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -154,6 +164,28 @@ def init_db():
         conn.execute("ALTER TABLE users ADD COLUMN sub_start TEXT")
     if "sub_end" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN sub_end TEXT")
+    # Auth-Spalten fuer Web-Login — nullable, damit Demo-Nutzer unveraendert bleiben.
+    if "password_hash" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    if "tier" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'")
+    if "stripe_customer_id" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
+    # is_admin: 1 = Zugang zu allen Admin-Routen, 0 = nur /generate und /stats.
+    if "is_admin" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+
+    sub_cols = {row["name"] for row in
+                conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
+    if "stripe_sub_id" not in sub_cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN stripe_sub_id TEXT")
+    if "period_end" not in sub_cols:
+        conn.execute("ALTER TABLE subscriptions ADD COLUMN period_end TEXT")
+
+    track_cols = {row["name"] for row in
+                  conn.execute("PRAGMA table_info(tracks)").fetchall()}
+    if "user_id" not in track_cols:
+        conn.execute("ALTER TABLE tracks ADD COLUMN user_id INTEGER REFERENCES users(id)")
 
     # --- Zwei Demo-Nutzer anlegen, damit Rabatt & Limit sofort erlebbar sind -
     user_count = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
@@ -222,3 +254,72 @@ def get_audit_log(limit=500):
     ).fetchall()
     conn.close()
     return rows
+
+
+# --- Auth helpers ------------------------------------------------------------
+
+def get_user_by_email(email: str):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    return row
+
+
+def create_user(email: str, password_hash: str, tier: str = "free"):
+    """Insert a new web-auth user; returns the new user id."""
+    conn = get_conn()
+    now = datetime.now().isoformat(timespec="seconds")
+    cur = conn.execute(
+        "INSERT INTO users (name, email, password_hash, tier, is_subscriber, created_at) "
+        "VALUES (?, ?, ?, ?, 0, ?)",
+        (email.split("@")[0], email, password_hash, tier, now),
+    )
+    uid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return uid
+
+
+# --- Quota helpers -----------------------------------------------------------
+
+def get_quota(user_id: int, date: str):
+    """Return the quota_ledger row for (user_id, date), or None if it doesn't exist yet."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM quota_ledger WHERE user_id = ? AND date = ?",
+        (user_id, date),
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def increment_quota(user_id: int, date: str):
+    """Upsert quota_ledger for today, incrementing daily and monthly saves by 1."""
+    # monthly_saves counts saves in the same YYYY-MM month prefix as date.
+    month_prefix = date[:7]  # e.g. "2026-08"
+    conn = get_conn()
+    # Ensure the row exists for today.
+    conn.execute(
+        "INSERT OR IGNORE INTO quota_ledger (user_id, date, daily_saves, monthly_saves) "
+        "VALUES (?, ?, 0, 0)",
+        (user_id, date),
+    )
+    conn.execute(
+        "UPDATE quota_ledger SET daily_saves = daily_saves + 1 "
+        "WHERE user_id = ? AND date = ?",
+        (user_id, date),
+    )
+    # Sum monthly saves across all days in the same month.
+    monthly = conn.execute(
+        "SELECT COALESCE(SUM(daily_saves), 0) AS s FROM quota_ledger "
+        "WHERE user_id = ? AND substr(date, 1, 7) = ?",
+        (user_id, month_prefix),
+    ).fetchone()["s"]
+    # Write the monthly total back to every row for this month so /quota can read it cheaply.
+    conn.execute(
+        "UPDATE quota_ledger SET monthly_saves = ? "
+        "WHERE user_id = ? AND substr(date, 1, 7) = ?",
+        (monthly, user_id, month_prefix),
+    )
+    conn.commit()
+    conn.close()

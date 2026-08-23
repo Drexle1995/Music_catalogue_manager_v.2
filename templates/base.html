@@ -8,23 +8,61 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">◈</span>
-      <span class="brand-name">SBS&nbsp;CATALOG</span>
-      <span class="brand-sub">Lizenz- & Wirtschaftlichkeitsmodul</span>
-    </div>
+    <a href="{{ url_for('generate.generate_page') }}" class="brand" style="text-decoration:none;">
+      <div class="brand-mark">◈</div>
+      <div>
+        <div class="brand-name">SBS&nbsp;CATALOG</div>
+        <div class="brand-sub">for creators</div>
+      </div>
+    </a>
     <nav class="nav">
-      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
-      <a href="{{ url_for('catalog') }}" class="{{ 'active' if request.endpoint in ['catalog','track_detail'] }}">Katalog</a>
-      <a href="{{ url_for('licenses') }}" class="{{ 'active' if request.endpoint == 'licenses' }}">Lizenzen</a>
-      <a href="{{ url_for('users_view') }}" class="{{ 'active' if request.endpoint == 'users_view' }}">Nutzer</a>
-      <a href="{{ url_for('economics_view') }}" class="{{ 'active' if request.endpoint == 'economics_view' }}">Wirtschaftlichkeit</a>
-      <a href="{{ url_for('audit') }}" class="{{ 'active' if request.endpoint == 'audit' }}">Protokoll</a>
-      <a href="{{ url_for('settings_view') }}" class="{{ 'active' if request.endpoint == 'settings_view' }}">Einstellungen</a>
+      <!-- Nutzer-Routen: immer sichtbar nach Login -->
+      <a href="{{ url_for('generate.generate_page') }}"
+         class="{{ 'active' if request.endpoint == 'generate.generate_page' }}">
+        Generate
+      </a>
+      <a href="{{ url_for('stats.stats_page') }}"
+         class="{{ 'active' if request.endpoint == 'stats.stats_page' }}">
+        Statistik
+      </a>
+
+      <!-- Admin-Routen: nur fuer Administratoren anzeigen -->
+      {% if current_user.is_authenticated and current_user.is_admin %}
+        <a href="{{ url_for('dashboard_view') }}"
+           class="{{ 'active' if request.endpoint == 'dashboard_view' }}">Dashboard</a>
+        <a href="{{ url_for('catalog') }}"
+           class="{{ 'active' if request.endpoint in ['catalog','track_detail'] }}">Katalog</a>
+        <a href="{{ url_for('licenses') }}"
+           class="{{ 'active' if request.endpoint == 'licenses' }}">Lizenzen</a>
+        <a href="{{ url_for('users_view') }}"
+           class="{{ 'active' if request.endpoint == 'users_view' }}">Nutzer</a>
+        <a href="{{ url_for('economics_view') }}"
+           class="{{ 'active' if request.endpoint == 'economics_view' }}">Wirtschaftlichkeit</a>
+        <a href="{{ url_for('audit') }}"
+           class="{{ 'active' if request.endpoint == 'audit' }}">Protokoll</a>
+        <a href="{{ url_for('settings_view') }}"
+           class="{{ 'active' if request.endpoint == 'settings_view' }}">Einstellungen</a>
+      {% endif %}
     </nav>
-    <form method="post" action="{{ url_for('scan') }}" class="topbar-action">
-      <button type="submit" class="btn btn-ghost">↻ Scannen</button>
-    </form>
+
+    <div style="display:flex;align-items:center;gap:.8rem;">
+      {% if current_user.is_authenticated %}
+        <span style="font-size:.78rem;color:#888;">{{ current_user.email }}</span>
+        {% if current_user.is_admin %}
+          <span style="font-size:.68rem;padding:.1rem .5rem;border-radius:99px;
+                       background:#1e1e2e;color:#7c6dea;border:1px solid #3a3060;">
+            ADMIN
+          </span>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}"
+           style="font-size:.78rem;color:#7c6dea;text-decoration:none;">Logout</a>
+      {% endif %}
+      {% if current_user.is_authenticated and current_user.is_admin %}
+        <form method="post" action="{{ url_for('scan') }}" class="topbar-action">
+          <button type="submit" class="btn btn-ghost">↻ Scannen</button>
+        </form>
+      {% endif %}
+    </div>
   </header>
 
   <main class="content">

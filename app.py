@@ -11,9 +11,12 @@ Start:  python app.py     ->  http://127.0.0.1:5000
 
 import csv
 import io
+import pathlib
 
 from flask import (Flask, flash, redirect, render_template, request,
                    Response, url_for)
+from flask_login import LoginManager, login_required, current_user
+from flask_session import Session
 
 import config
 import database as db
@@ -24,18 +27,63 @@ import licensing
 import quota
 import scanner
 from demo_data import generate as generate_demo
+from auth import auth_bp, User
+from generate import generate_bp
+from rbac import require_admin
+from stats import stats_bp
 
 app = Flask(__name__)
-app.secret_key = "change-me-in-production"  # nur fuer Flash-Messages
+app.secret_key = "change-me-in-production"
+
+# --- Serverseitige Session-Konfiguration ------------------------------------
+# Cookie-basierte Sessions sind auf ~4 KB begrenzt — zu klein fuer Audio-Pfade.
+# Flask-Session speichert Sitzungsdaten auf dem Dateisystem, kein Groessenlimit.
+_session_dir = pathlib.Path(__file__).parent / "flask_session"
+_session_dir.mkdir(exist_ok=True)
+app.config["SESSION_TYPE"]             = "filesystem"
+app.config["SESSION_FILE_DIR"]         = str(_session_dir)
+app.config["SESSION_PERMANENT"]        = False
+app.config["SESSION_USE_SIGNER"]       = True   # Session-ID im Cookie signieren
+app.config["SESSION_FILE_THRESHOLD"]   = 500    # max. Anzahl gespeicherter Session-Dateien
+Session(app)
+
+# --- Flask-Login setup ------------------------------------------------------
+
+login_manager = LoginManager(app)
+login_manager.login_view = "auth.login"
+login_manager.login_message = "Bitte melden Sie sich an, um auf diese Seite zuzugreifen."
+login_manager.login_message_category = "error"
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.load(int(user_id))
+
+
+# --- Blueprints -------------------------------------------------------------
+
+app.register_blueprint(auth_bp)
+app.register_blueprint(generate_bp)
+app.register_blueprint(stats_bp)
 
 # Datenbank beim Import initialisieren (idempotent).
 db.init_db()
 
 
-# --- Dashboard --------------------------------------------------------------
+# --- Root redirect ----------------------------------------------------------
 
 @app.route("/")
 def dashboard():
+    """Redirect to /generate when logged in, otherwise to login."""
+    if current_user.is_authenticated:
+        return redirect(url_for("generate.generate_page"))
+    return redirect(url_for("auth.login"))
+
+
+@app.route("/dashboard")
+@login_required
+@require_admin
+def dashboard_view():
     metrics = economics.compute()
     return render_template("dashboard.html", m=metrics, tiers=config.DEFAULT_TIERS)
 
@@ -43,6 +91,8 @@ def dashboard():
 # --- Katalog ----------------------------------------------------------------
 
 @app.route("/catalog")
+@login_required
+@require_admin
 def catalog():
     genre = request.args.get("genre", "")
     status = request.args.get("status", "")
@@ -66,6 +116,8 @@ def catalog():
 
 
 @app.route("/track/<int:track_id>")
+@login_required
+@require_admin
 def track_detail(track_id):
     conn = db.get_conn()
     track = conn.execute("SELECT * FROM tracks WHERE id = ?", (track_id,)).fetchone()
@@ -91,6 +143,8 @@ def track_detail(track_id):
 # --- Lizenz verkaufen -------------------------------------------------------
 
 @app.route("/license/sell", methods=["POST"])
+@login_required
+@require_admin
 def sell():
     track_id = int(request.form["track_id"])
     tier = request.form["tier"]
@@ -114,6 +168,8 @@ def sell():
 # --- Checkout & Zahlung (simuliert) -----------------------------------------
 
 @app.route("/checkout/<int:license_id>")
+@login_required
+@require_admin
 def checkout(license_id):
     lic = billing.get_license(license_id)
     if not lic:
@@ -124,6 +180,8 @@ def checkout(license_id):
 
 
 @app.route("/license/<int:license_id>/pay", methods=["POST"])
+@login_required
+@require_admin
 def license_pay(license_id):
     ok, err = billing.pay_license(license_id)
     flash("Zahlung bestätigt — die Lizenz ist bezahlt." if ok else err,
@@ -132,6 +190,8 @@ def license_pay(license_id):
 
 
 @app.route("/license/<int:license_id>/cancel", methods=["POST"])
+@login_required
+@require_admin
 def license_cancel(license_id):
     lic = billing.get_license(license_id)
     track_id = lic["track_id"] if lic else None
@@ -143,6 +203,8 @@ def license_cancel(license_id):
 
 
 @app.route("/invoice/<int:license_id>")
+@login_required
+@require_admin
 def invoice(license_id):
     lic = billing.get_license(license_id)
     if not lic:
@@ -153,6 +215,8 @@ def invoice(license_id):
 
 
 @app.route("/licenses")
+@login_required
+@require_admin
 def licenses():
     rows = licensing.list_licenses()
     return render_template("licenses.html", licenses=rows)
@@ -161,6 +225,8 @@ def licenses():
 # --- Wirtschaftlichkeit -----------------------------------------------------
 
 @app.route("/economics")
+@login_required
+@require_admin
 def economics_view():
     metrics = economics.compute()
     settings = db.get_all_settings()
@@ -171,6 +237,8 @@ def economics_view():
 # --- Einstellungen ----------------------------------------------------------
 
 @app.route("/settings", methods=["GET", "POST"])
+@login_required
+@require_admin
 def settings_view():
     if request.method == "POST":
         # Pfade + Kostenannahmen + Preise speichern.
@@ -195,6 +263,8 @@ def settings_view():
 # --- Aktionen: Scan & Demo --------------------------------------------------
 
 @app.route("/scan", methods=["POST"])
+@login_required
+@require_admin
 def scan():
     result = scanner.scan_all()
     cat, exp = result["catalog"], result["exports"]
@@ -208,10 +278,12 @@ def scan():
     else:
         flash(f"Exporte gescannt: {exp['linked']} verknuepft, "
               f"{exp['unmatched']} ohne Zuordnung.", "success")
-    return redirect(request.referrer or url_for("catalog"))
+    return redirect(request.referrer or url_for("dashboard_view"))
 
 
 @app.route("/load-demo", methods=["POST"])
+@login_required
+@require_admin
 def load_demo():
     result = generate_demo()
     if result.get("error"):
@@ -221,12 +293,14 @@ def load_demo():
               f"{result['exports_created']} Exporte. Jetzt 'Scannen' klicken.",
               "success")
         db.log_event("DEMO_LOADED", "catalog", None, result)
-    return redirect(request.referrer or url_for("dashboard"))
+    return redirect(request.referrer or url_for("dashboard_view"))
 
 
 # --- Nutzer & Abo -----------------------------------------------------------
 
 @app.route("/users")
+@login_required
+@require_admin
 def users_view():
     users = quota.list_users()
     # Kontingent-Status je Nutzer fuer die Anzeige.
@@ -245,6 +319,8 @@ def users_view():
 # --- Abo-Checkout -----------------------------------------------------------
 
 @app.route("/subscription/start", methods=["POST"])
+@login_required
+@require_admin
 def subscription_start():
     user_id = int(request.form["user_id"])
     term = int(request.form.get("term_months", "1"))
@@ -256,6 +332,8 @@ def subscription_start():
 
 
 @app.route("/subscription/checkout/<int:sub_id>")
+@login_required
+@require_admin
 def subscription_checkout(sub_id):
     sub = billing.get_subscription(sub_id)
     if not sub:
@@ -266,6 +344,8 @@ def subscription_checkout(sub_id):
 
 
 @app.route("/subscription/<int:sub_id>/pay", methods=["POST"])
+@login_required
+@require_admin
 def subscription_pay(sub_id):
     ok, err = billing.pay_subscription(sub_id)
     flash("Abo bezahlt und aktiviert." if ok else err, "success" if ok else "error")
@@ -273,6 +353,8 @@ def subscription_pay(sub_id):
 
 
 @app.route("/subscription/invoice/<int:sub_id>")
+@login_required
+@require_admin
 def subscription_invoice(sub_id):
     sub = billing.get_subscription(sub_id)
     if not sub:
@@ -283,6 +365,8 @@ def subscription_invoice(sub_id):
 
 
 @app.route("/users/add", methods=["POST"])
+@login_required
+@require_admin
 def users_add():
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
@@ -296,6 +380,8 @@ def users_add():
 
 
 @app.route("/users/<int:user_id>/toggle", methods=["POST"])
+@login_required
+@require_admin
 def users_toggle(user_id):
     user = quota.get_user(user_id)
     if user:
@@ -306,7 +392,9 @@ def users_toggle(user_id):
     return redirect(url_for("users_view"))
 
 
-@app.route("/generate", methods=["POST"])
+@app.route("/generate-legacy", methods=["POST"])
+@login_required
+@require_admin
 def generate_track():
     user_id = int(request.form["user_id"])
     try:
@@ -315,9 +403,9 @@ def generate_track():
         count = 1
     res = gateway.run_generation(user_id, count=count)
     if res["ok"]:
-        flash(f"[{res['mode']}] {res['count']} Track(s) für {res['user']} erzeugt. "
+        flash(f"[{res['mode']}] {res['count']} Track(s) fuer {res['user']} erzeugt. "
               f"Heute {res['status']['used']}/{res['status']['limit']} "
-              f"(noch {res['status']['remaining']}). Zum Übernehmen: „Scannen“.",
+              f"(noch {res['status']['remaining']}). Zum Uebernehmen: Scannen.",
               "success")
     else:
         flash(res["error"], "error")
@@ -327,12 +415,16 @@ def generate_track():
 # --- Audit-Protokoll --------------------------------------------------------
 
 @app.route("/audit")
+@login_required
+@require_admin
 def audit():
     rows = db.get_audit_log()
     return render_template("audit.html", rows=rows)
 
 
 @app.route("/audit.csv")
+@login_required
+@require_admin
 def audit_csv():
     rows = db.get_audit_log(limit=100000)
     buffer = io.StringIO()
@@ -359,4 +451,4 @@ def euro(value):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False, threaded=True)

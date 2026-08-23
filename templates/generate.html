@@ -1,0 +1,2518 @@
+{% extends "base.html" %}
+{% block title %}Beat generieren — SBS CATALOG{% endblock %}
+
+{% block content %}
+<div class="gen-layout">
+
+  <!-- ═══════════════════════════════ LINKE SEITENLEISTE ═══════════════════════════════ -->
+  <aside class="gen-sidebar">
+
+    <!-- Kontingent-Anzeige -->
+    <div class="quota-bar">
+      <span class="quota-label">Kontingent</span>
+      <span class="quota-counts">
+        <span id="quotaDaily">{{ daily_remaining }}</span> heute
+        {% if monthly_remaining is not none %}
+          · <span id="quotaMonthly">{{ monthly_remaining }}</span> diesen Monat
+        {% endif %}
+      </span>
+      <span class="tier-badge tier-{{ tier }}">{{ tier|upper }}</span>
+    </div>
+
+    <!-- Scrollbarer Bereich: alle Parameter-Sektionen -->
+    <div class="gen-sidebar-scroll">
+
+    <!-- 0 · PROMPT -->
+    <details class="param-section" open>
+      <summary>Prompt-Eingabe</summary>
+      <div class="section-body">
+        <textarea id="promptText" rows="2" placeholder="z. B. &quot;Bright POP Song&quot; oder &quot;fast dark trap beat&quot;" class="gen-textarea"></textarea>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnDecode">&#9675; Erkennen</button>
+        <div id="promptResult" class="prompt-result" hidden></div>
+      </div>
+    </details>
+
+    <!-- 1 · BASIS-PARAMETER -->
+    <details class="param-section" open>
+      <summary>Basis-Parameter</summary>
+      <div class="section-body">
+        <label class="field-label">Genre
+          <select id="genre" class="gen-select">
+            {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
+              <option value="{{ g }}">{{ g|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field-label">BPM
+          <input type="number" id="bpm" min="40" max="220" step="1" placeholder="auto" class="gen-input">
+        </label>
+        <label class="field-label">Komplexitaet (1-10)
+          <div class="slider-row">
+            <input type="range" id="complexity" min="1" max="10" value="5">
+            <span class="slider-val" id="complexityVal">5</span>
+          </div>
+        </label>
+        <label class="field-label">Seed (optional)
+          <input type="number" id="seed" placeholder="zufaellig" class="gen-input">
+        </label>
+      </div>
+    </details>
+
+    <!-- 2 · TONART & STRUKTUR -->
+    <details class="param-section">
+      <summary>Tonart &amp; Struktur</summary>
+      <div class="section-body">
+        <div class="two-col">
+          <label class="field-label">Ton
+            <select id="keyNote" class="gen-select">
+              <option value="">auto</option>
+              {% for n in ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"] %}
+                <option value="{{ n }}">{{ n }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field-label">Tonleiter
+            <select id="keyScale" class="gen-select">
+              <option value="">auto</option>
+              {% for s in ["major","minor","dorian","mixolydian","phrygian","lydian",
+                           "pentatonic_minor","pentatonic_major","harmonic_minor",
+                           "melodic_minor","blues","japanese"] %}
+                <option value="{{ s }}">{{ s }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="field-label">Dauer (Takte, 0 = auto)
+          <input type="number" id="durationBars" min="0" max="128" value="0" class="gen-input">
+        </label>
+      </div>
+    </details>
+
+    <!-- 3 · KLANG & AUSDRUCK -->
+    <details class="param-section">
+      <summary>Klang &amp; Ausdruck</summary>
+      <div class="section-body">
+        <label class="field-label">Humanisierung
+          <div class="slider-row"><input type="range" id="humanize" min="0" max="1" step="0.05" value="0.6"><span class="slider-val" id="humanizeVal">0.60</span></div>
+        </label>
+        <label class="field-label">Mutation
+          <div class="slider-row"><input type="range" id="mutation" min="0" max="1" step="0.05" value="0"><span class="slider-val" id="mutationVal">0.00</span></div>
+        </label>
+        <label class="field-label">Spannung
+          <div class="slider-row"><input type="range" id="tension" min="0" max="1.5" step="0.05" value="0"><span class="slider-val" id="tensionVal">0.00</span></div>
+        </label>
+        <label class="field-label">FX-Kette
+          <div class="fx-chips" id="fxVariant" data-value="neutral">
+            <button type="button" class="chip" data-v="bright">Bright</button>
+            <button type="button" class="chip chip-active" data-v="neutral">Neutral</button>
+            <button type="button" class="chip" data-v="dark">Dark</button>
+          </div>
+        </label>
+      </div>
+    </details>
+
+    <!-- 4 · GENERIERUNGSMODUS -->
+    <details class="param-section">
+      <summary>Generierungsmodus</summary>
+      <div class="section-body">
+        <div class="mode-chips" id="genMode" data-value="full">
+          <button type="button" class="chip chip-active" data-v="full">Full Beat</button>
+          <button type="button" class="chip" data-v="vocal_ready">Vocal-Ready</button>
+          <button type="button" class="chip" data-v="both">Beide</button>
+        </div>
+        <p class="hint"><strong>Full Beat</strong> = vollstaendige Komposition · <strong>Vocal-Ready</strong> = ohne Lead/Pad/Arp · <strong>Beide</strong> = zwei Dateien</p>
+      </div>
+    </details>
+
+    <!-- 5 · FUSION-MODUS -->
+    <details class="param-section">
+      <summary>Fusion-Modus</summary>
+      <div class="section-body">
+        <div class="fusion-mode-chips" id="fusionMode" data-value="off">
+          <button type="button" class="chip chip-active" data-v="off">Aus</button>
+          <button type="button" class="chip" data-v="preset">Preset</button>
+          <button type="button" class="chip" data-v="custom">Custom-Mix</button>
+        </div>
+        <div id="fusionPresetBox" class="fusion-sub" hidden>
+          <label class="field-label">Preset
+            <select id="fusionPreset" class="gen-select">
+              {% for p in _fusion_presets %}
+                <option value="{{ p.key }}" title="{{ p.description }}">{{ p.label }} ({{ p.genres[0] }} + {{ p.genres[1] }})</option>
+              {% else %}<option value="">Keine Presets verfuegbar</option>{% endfor %}
+            </select>
+          </label>
+          <p id="fusionPresetDesc" class="hint"></p>
+        </div>
+        <div id="fusionCustomBox" class="fusion-sub" hidden>
+          <div class="two-col">
+            <label class="field-label">Genre A
+              <select id="fusionGenre1" class="gen-select">
+                {% for g in _fusion_genres %}<option value="{{ g }}">{{ g|capitalize }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="field-label">Genre B
+              <select id="fusionGenre2" class="gen-select">
+                {% for g in _fusion_genres %}<option value="{{ g }}"{% if loop.index == 2 %} selected{% endif %}>{{ g|capitalize }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <label class="field-label">Mix A / B
+            <div class="slider-row"><input type="range" id="fusionRatio" min="0" max="1" step="0.05" value="0.5"><span class="slider-val" id="fusionRatioVal">50 / 50</span></div>
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <!-- 6 · INSTRUMENTE & MIXER -->
+    <details class="param-section">
+      <summary>Instrumente &amp; Mixer</summary>
+      <div class="section-body mixer-grid">
+        {% set tracks_def = [
+          ("drums",      "Drums",     _instruments.drums),
+          ("percussion", "Perkussion",_instruments.percussion),
+          ("bass",       "Bass",      _instruments.bass),
+          ("chords",     "Akkorde",   _instruments.chords),
+          ("lead",       "Lead",      _instruments.lead),
+          ("pad",        "Pad",       _instruments.pad),
+          ("arp",        "Arp",       _instruments.arp),
+          ("stabs",      "Stabs",     _instruments.stabs),
+          ("texture",    "Textur",    _instruments.texture),
+          ("fx",         "FX",        _instruments.fx),
+        ] %}
+        {% set dvols = {"drums":0.85,"percussion":0.65,"bass":0.80,"chords":0.70,"lead":0.75,"pad":0.60,"arp":0.50,"stabs":0.55,"texture":0.40,"fx":0.35} %}
+        {% for key, label, options in tracks_def %}
+        <div class="mixer-row">
+          <span class="mixer-label">{{ label }}</span>
+          <div class="mixer-instr-wrap">
+            <select id="instr_{{ key }}" class="gen-select gen-select-sm" onchange="onInstrChange('{{ key }}', this.value)">
+              <option value="">auto</option>
+              {% for gm, name in options %}<option value="{{ gm }}">{{ name }}</option>{% endfor %}
+            </select>
+            <span class="instr-desc" id="desc_{{ key }}"></span>
+          </div>
+          <div class="vol-wrap">
+            <input type="range" class="vol-slider" id="vol_{{ key }}" min="0" max="1" step="0.05" value="{{ dvols[key] }}">
+            <span class="vol-val" id="vol_{{ key }}_val">{{ (dvols[key]*100)|int }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+
+    </div><!-- /.gen-sidebar-scroll -->
+
+    <!-- Soundfont-Auswahl (immer sichtbar, beeinflusst Render-Geschwindigkeit) -->
+    <div class="gen-sf2-bar">
+      <span class="gen-sf2-lbl">SOUNDFONT</span>
+      <select id="genSf2Select" class="gen-select gen-select-sm"
+              onchange="G.sf2Key=this.value||null; G.sf2Uuid=null;
+                        $('sf2FileName').textContent='';
+                        const pa=$('sf2PresetSelect'); if(pa) pa.value=this.value;">
+        <option value="">— Genre-Standard (SF2) —</option>
+      </select>
+    </div>
+
+    <!-- Generieren-Button (ausserhalb des Scroll-Bereichs, immer sichtbar) -->
+    <button id="btnGenerate" class="btn btn-primary btn-full gen-generate-btn">&#9654; Beat generieren</button>
+
+  </aside>
+
+  <!-- ═══════════════════════════════ RECHTES PANEL ═══════════════════════════════ -->
+  <section class="gen-main">
+
+    <div id="genSpinner" class="spinner-wrap" style="display:none">
+      <div class="spinner"></div>
+      <span>Generierung laeuft&#8230;</span>
+    </div>
+    <div id="genError" class="gen-error" style="display:none"></div>
+
+    <!-- Tab-Leiste -->
+    <div class="tab-bar">
+      <button class="tab-btn tab-active" data-tab="preview">Vorschau &amp; Speichern</button>
+      <button class="tab-btn" data-tab="output">Ausgabe</button>
+      <button class="tab-btn" data-tab="waveform">Wellenform</button>
+      <button class="tab-btn" data-tab="pianoroll">Piano Roll</button>
+      <button class="tab-btn" data-tab="advisor">Production Advisor</button>
+    </div>
+
+    <!-- ─── Tab: Vorschau & Speichern ─── -->
+    <div class="tab-pane tab-active" id="tab-preview">
+      <div id="playerWrap" hidden>
+        <div class="audio-section">
+          <p class="audio-label">Full Beat</p>
+          <audio id="audioPlayer" style="display:none"></audio>
+          <div class="wave-player">
+            <canvas id="playerWaveCanvas" class="wave-player-canvas"></canvas>
+            <div class="wave-player-controls">
+              <button class="wave-player-btn" id="btnPlayerPlay" title="Abspielen / Anhalten" onclick="playerTogglePlay()">&#9654;</button>
+              <span class="wave-player-time" id="playerTimeDisplay">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+        <div id="vocalSection" class="audio-section" hidden>
+          <p class="audio-label">Vocal-Ready Beat</p>
+          <audio id="audioPlayerVocal" style="display:none"></audio>
+          <div class="wave-player">
+            <canvas id="playerWaveCanvasVocal" class="wave-player-canvas"></canvas>
+            <div class="wave-player-controls">
+              <button class="wave-player-btn" id="btnPlayerPlayVocal" title="Abspielen / Anhalten" onclick="playerTogglePlayVocal()">&#9654;</button>
+              <span class="wave-player-time" id="playerTimeDisplayVocal">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="save-form">
+          <button id="btnOpenExport" class="btn btn-primary btn-full">&#8659; Exportieren</button>
+        </div>
+      </div>
+      <div id="previewEmpty" class="empty-state">
+        <span class="empty-icon">&#9835;</span>
+        <p>Noch kein Beat generiert. Parameter links auswaehlen und auf <strong>Beat generieren</strong> klicken.</p>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Ausgabe ─── -->
+    <div class="tab-pane" id="tab-output">
+      <div id="outputWrap" hidden>
+
+        <!-- Song-Kopfzeile -->
+        <div class="out-header">
+          <span id="outTitle" class="out-title"></span>
+        </div>
+
+        <!-- Metadaten-Tabelle -->
+        <div class="out-meta-grid">
+          <div class="out-meta-row"><span class="out-meta-k">Artist</span><span id="outArtist" class="out-meta-v">Seed Composer AI</span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Album</span><span id="outAlbum" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Genre</span><span id="outGenre" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Jahr</span><span id="outYear" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Dauer</span><span id="outDuration" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Bitrate</span><span id="outBitrate" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Sample Rate</span><span id="outSampleRate" class="out-meta-v"></span></div>
+          <div class="out-meta-row"><span class="out-meta-k">Takte</span><span id="outBars" class="out-meta-v"></span></div>
+        </div>
+
+        <!-- Akkord-Progression -->
+        <div class="out-section">
+          <div class="out-section-hdr">AKKORDE</div>
+          <div id="outChords" class="out-chords"></div>
+        </div>
+
+        <!-- Spurstatistik -->
+        <div class="out-section">
+          <div class="out-section-hdr">SPUREN</div>
+          <div id="outTracks" class="out-tracks-table"></div>
+        </div>
+
+      </div>
+      <div id="outputEmpty" class="empty-state">
+        <span class="empty-icon">&#9835;</span>
+        <p>Nach der Generierung werden hier Song-Metadaten, Akkorde und Spur-Statistiken angezeigt.</p>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Wellenform ─── -->
+    <div class="tab-pane" id="tab-waveform">
+      <div id="waveformWrap" hidden>
+        <div class="wave-scroll-wrap">
+          <canvas id="waveCanvas" class="wave-canvas"></canvas>
+        </div>
+        <div class="waveform-controls">
+          <button class="btn btn-ghost btn-sm" id="btnWaveZoomIn">+ Zoom</button>
+          <button class="btn btn-ghost btn-sm" id="btnWaveZoomOut">- Zoom</button>
+          <button class="btn btn-ghost btn-sm" id="btnWaveReset">Reset</button>
+        </div>
+      </div>
+      <div id="waveformEmpty" class="empty-state">
+        <span class="empty-icon">&#12316;</span>
+        <p>Nach der Generierung wird hier die Wellenform angezeigt.</p>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Piano Roll ─── -->
+    <div class="tab-pane" id="tab-pianoroll">
+      <div id="rollWrap" hidden>
+        <div id="rollTrackToggles" class="roll-toggles"></div>
+        <div class="roll-viewport">
+          <canvas id="rollKeys" class="roll-keys"></canvas>
+          <div class="roll-canvas-box">
+            <canvas id="rollCanvas" class="roll-canvas"></canvas>
+          </div>
+        </div>
+        <div class="roll-info">
+          <span id="rollBpm"></span>
+          <span id="rollBars"></span>
+        </div>
+      </div>
+      <div id="rollEmpty" class="empty-state">
+        <span class="empty-icon">&#127929;</span>
+        <p>Die Piano Roll wird nach der Generierung angezeigt.</p>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Production Advisor ─── -->
+    <div class="tab-pane" id="tab-advisor">
+      <div id="advisorWrap" hidden>
+
+        <!-- Palette & Prompt-Analyse -->
+        <details class="adv-section" open>
+          <summary>Palette &amp; Prompt-Analyse</summary>
+          <div class="adv-body">
+            <div id="advPromptTable" class="adv-kv-table"></div>
+          </div>
+        </details>
+
+        <!-- Instrument-Info -->
+        <details class="adv-section">
+          <summary>Instrumente</summary>
+          <div class="adv-body">
+            <table class="adv-table" id="advInstTable">
+              <thead><tr><th>Spur</th><th>GM</th><th>Beschreibung</th></tr></thead>
+              <tbody id="advInstBody"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <!-- Gain Staging -->
+        <details class="adv-section">
+          <summary>Gain Staging &amp; Ziele</summary>
+          <div class="adv-body">
+            <table class="adv-table" id="advGainTable">
+              <thead><tr><th>Spur</th><th>RMS</th><th>Peak</th><th>LUFS-S</th><th>Fader</th></tr></thead>
+              <tbody id="advGainBody"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <!-- Effektketten -->
+        <details class="adv-section">
+          <summary>Effektketten</summary>
+          <div class="adv-body" id="advFxBody"></div>
+        </details>
+
+        <!-- Frequenzallokation -->
+        <details class="adv-section">
+          <summary>Frequenzallokation</summary>
+          <div class="adv-body">
+            <table class="adv-table" id="advFreqTable">
+              <thead><tr><th>Spur</th><th>HPF</th><th>LPF</th><th>Zone</th></tr></thead>
+              <tbody id="advFreqBody"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <!-- BPM-Zeiten -->
+        <details class="adv-section">
+          <summary>BPM-Zeitwerte</summary>
+          <div class="adv-body">
+            <div id="advBpmTable" class="adv-kv-table"></div>
+          </div>
+        </details>
+
+        <!-- Export-Ziele -->
+        <details class="adv-section">
+          <summary>Export-Ziele</summary>
+          <div class="adv-body" id="advExportBody"></div>
+        </details>
+
+        <!-- Groove & Mix — Re-Render -->
+        <details class="adv-section" id="advGrooveSection">
+          <summary>Groove &amp; Mix — Re-Render</summary>
+          <div class="adv-body" style="gap:.45rem;">
+
+            <!-- Versteckter Audio-Player fuer Solo-Vorschau -->
+            <audio id="soloPreviewPlayer" style="display:none"></audio>
+
+            <!-- Solo-Rendering -->
+            <div class="groove-solo-bar">
+              <button class="groove-all-btn" id="btnRenderAllSolos">&#9654; ALLE SOLOS RENDERN</button>
+              <button class="groove-reset-btn" id="btnResetSolos">&#10005; SOLOS ZURUECKSETZEN</button>
+            </div>
+            <div id="grooveSoloRows" class="groove-solo-rows"></div>
+
+            <!-- Groove-Parameter fuer ausgew&#228;hlte Spur -->
+            <div id="grooveParamPanel" class="groove-param-panel" hidden>
+              <div class="groove-section-hdr" id="grooveParamLabel" style="margin-bottom:.3rem;">—</div>
+              <div class="groove-param-grid">
+                <label class="groove-param-lbl">Swing
+                  <div class="slider-row">
+                    <input type="range" id="gp_swing" min="25" max="75" step="0.5" value="50">
+                    <span class="slider-val" id="gp_swingVal">50.0 %</span>
+                  </div>
+                </label>
+                <label class="groove-param-lbl">Nudge
+                  <div style="display:flex;align-items:center;gap:.3rem;">
+                    <input type="number" id="gp_nudge" min="-100" max="100" step="0.5" value="0" class="gen-input" style="width:70px;">
+                    <span style="color:#666;font-size:.72rem;">ms</span>
+                  </div>
+                </label>
+                <label class="groove-param-lbl">Vel min
+                  <input type="number" id="gp_velMin" min="1" max="127" value="1" class="gen-input" style="width:58px;">
+                </label>
+                <label class="groove-param-lbl">max
+                  <input type="number" id="gp_velMax" min="1" max="127" value="127" class="gen-input" style="width:58px;">
+                </label>
+                <label class="groove-param-lbl">Kurve
+                  <select id="gp_curve" class="gen-select" style="width:auto;">
+                    <option value="flat">Gleichmaessig</option>
+                    <option value="accent">Betont</option>
+                    <option value="crescendo">Crescendo</option>
+                    <option value="diminuendo">Diminuendo</option>
+                  </select>
+                </label>
+              </div>
+              <button class="groove-btn groove-save-param-btn" id="btnSaveGrooveParam" onclick="saveGrooveParam()">&#10003; Uebernehmen</button>
+            </div>
+
+            <!-- Humanize -->
+            <div class="groove-humanize-block">
+              <div class="groove-section-hdr">HUMANISIERUNG</div>
+              <div class="groove-param-grid">
+                <label class="groove-param-lbl">Vel-Jitter
+                  <div class="slider-row">
+                    <input type="range" id="gp_velJitter" min="0" max="30" step="1" value="0">
+                    <span class="slider-val" id="gp_velJitterVal">&#177;0</span>
+                  </div>
+                </label>
+                <label class="groove-param-lbl">Time-Jitter
+                  <div class="slider-row">
+                    <input type="range" id="gp_timeJitter" min="0" max="50" step="1" value="0">
+                    <span class="slider-val" id="gp_timeJitterVal">&#177;0 ms</span>
+                  </div>
+                </label>
+                <div style="display:flex;align-items:flex-end;gap:.4rem;">
+                  <label class="groove-param-lbl">Seed (leer = neu)
+                    <input type="number" id="gp_humanSeed" placeholder="zufaellig" class="gen-input" style="width:90px;">
+                  </label>
+                  <button class="groove-btn" id="btnGrooveRoll" onclick="grooveRoll()">W&#252;rfeln</button>
+                  <button class="groove-btn" id="btnGrooveClear" onclick="grooveClear()">Leeren</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Palette & FX-Kette -->
+            <div class="groove-section-hdr" style="margin-top:.25rem;">PALETTE &amp; FX-KETTE</div>
+            <div class="palette-panel">
+              <select id="paletteSelect" class="gen-select gen-select-sm" onchange="onPaletteChange(this.value)">
+                <option value="">— zuerst Beat generieren —</option>
+              </select>
+              <div id="paletteDesc" class="palette-desc"></div>
+              <div class="palette-fx-row">
+                <button class="palette-fx-btn palette-fx-active" id="pfxbtn_neutral" onclick="setPaletteVariant('neutral')">NATURAL</button>
+                <button class="palette-fx-btn" id="pfxbtn_bright" onclick="setPaletteVariant('bright')">POLISHED</button>
+                <button class="palette-fx-btn" id="pfxbtn_dark" onclick="setPaletteVariant('dark')">UNDERGROUND</button>
+              </div>
+              <div id="paletteVariantDesc" class="palette-desc"></div>
+            </div>
+
+            <!-- Theorie-Pruefer -->
+            <div class="theory-panel">
+              <div class="theory-header">
+                <span class="groove-section-hdr">THEORIE</span>
+                <button class="groove-btn" onclick="checkTheory()">&#10003; Pruefen</button>
+              </div>
+              <div class="theory-score-row">
+                <span class="theory-score-lbl">SCORE</span>
+                <div class="theory-bar-wrap">
+                  <div class="theory-bar-fill" id="theoryScoreBar"></div>
+                </div>
+                <span class="theory-score-num" id="theoryScoreVal">—</span>
+                <span class="theory-grade-badge" id="theoryGrade"></span>
+              </div>
+              <div class="theory-checks">
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p1">●</span><span class="tc-lbl">P1 BPM</span><span class="tc-det" id="tcd_p1">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p2">●</span><span class="tc-lbl">P2 Tonleiter</span><span class="tc-det" id="tcd_p2">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p3">●</span><span class="tc-lbl">P3 Register</span><span class="tc-det" id="tcd_p3">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p4">●</span><span class="tc-lbl">P4 Dichte</span><span class="tc-det" id="tcd_p4">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p5">●</span><span class="tc-lbl">P5 Helligkeit</span><span class="tc-det" id="tcd_p5">—</span></div>
+              </div>
+              <div id="theoryFeedback" class="theory-feedback" hidden></div>
+            </div>
+
+            <!-- Instrument-Builder -->
+            <details class="groove-sub-section">
+              <summary>Instrumente (vor Re-Rendering &#228;ndern)</summary>
+              <div id="grooveInstrRows" class="groove-instr-rows"></div>
+            </details>
+
+            <!-- Mixer fuer Re-Render -->
+            <div class="groove-section-hdr">MIXER</div>
+            <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;">
+              <select id="grooveGenreSelect" class="gen-select" style="width:auto;font-size:.72rem;">
+                {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
+                  <option value="{{ g }}">{{ g|capitalize }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="groove-btn" id="btnLoadGroove">Preset laden</button>
+              <button type="button" class="groove-btn" id="btnResetGroove">Zur&#252;cksetzen</button>
+            </div>
+            <div id="grooveMixerRows" class="groove-rows"></div>
+
+            <!-- Soundfont-Auswahl -->
+            <div class="groove-section-hdr">SOUNDFONT</div>
+            <div class="sf2-panel">
+              <select id="sf2PresetSelect" class="gen-select gen-select-sm"
+                      onchange="G.sf2Key=this.value||null; G.sf2Uuid=null;
+                                $('sf2FileName').textContent='';
+                                const gs=$('genSf2Select'); if(gs) gs.value=this.value;">
+                <option value="">— Genre-Standard (SF2) —</option>
+              </select>
+              <div class="sf2-upload-row">
+                <span class="sf2-upload-lbl">Eigene SF2-Datei:</span>
+                <input type="file" id="sf2FileInput" accept=".sf2" style="display:none"
+                       onchange="uploadSf2File(this)">
+                <button class="groove-btn" onclick="$('sf2FileInput').click()">&#128190; Laden</button>
+                <span id="sf2FileName" class="sf2-filename"></span>
+              </div>
+              <div id="sf2UploadProgress" class="sf2-progress" hidden>Wird hochgeladen&#8230;</div>
+            </div>
+
+            <!-- Groove anwenden & neu rendern -->
+            <button class="groove-apply-btn" id="btnApplyGroove">&#9654; GROOVE ANWENDEN &amp; NEU RENDERN</button>
+
+            <!-- Neu gerendertes Audio + Download -->
+            <div id="grooveRerenderedWrap" class="groove-rerendered" hidden>
+              <p class="groove-section-hdr" style="margin-bottom:.3rem;">VORSCHAU — NEU GERENDERT</p>
+              <audio id="grooveAudioPlayer" controls class="audio-player"></audio>
+              <div style="display:flex;gap:.5rem;margin-top:.4rem;">
+                <button class="btn btn-ghost btn-sm" id="btnGrooveExport" onclick="openExportModalForRerender()">&#8659; Exportieren</button>
+                <button class="btn btn-ghost btn-sm" id="btnGrooveSaveMain" onclick="useRerenderedAsMain()">&#8617; Als Hauptversion verwenden</button>
+              </div>
+            </div>
+
+          </div>
+        </details>
+
+      </div>
+      <div id="advisorEmpty" class="empty-state">
+        <span class="empty-icon">&#128203;</span>
+        <p>Der Production Advisor wird nach der Generierung befullt.</p>
+      </div>
+    </div>
+
+  </section>
+</div>
+
+<!-- ═══════════════════════════════ EXPORT-MODAL ═══════════════════════════════ -->
+<div id="exportModal" class="export-overlay" hidden>
+  <div class="export-modal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+
+    <div class="export-modal-hdr">
+      <span id="exportModalTitle" class="export-modal-title">AUDIO EXPORTIEREN</span>
+      <button class="export-close" onclick="closeExportModal()" aria-label="Schliessen">&#10005;</button>
+    </div>
+
+    <!-- Format-Auswahl -->
+    <div class="export-section">
+      <div class="export-section-lbl">FORMAT</div>
+      <div class="export-format-grid" id="exportFormatGrid"></div>
+      <div id="exportFfmpegHint" class="export-hint" hidden>
+        &#9888; Formate mit * erfordern <strong>ffmpeg</strong> im System-PATH.
+      </div>
+    </div>
+
+    <!-- Quelle -->
+    <div class="export-section">
+      <div class="export-section-lbl">QUELLE</div>
+      <div class="export-src-chips">
+        <button class="chip chip-active export-src-btn" data-v="main"
+                onclick="setExportSrc('main')">Full Beat</button>
+        <button class="chip export-src-btn" data-v="rerender"
+                id="exportSrcRerender" onclick="setExportSrc('rerender')">Neu gerendert</button>
+        <button class="chip export-src-btn" data-v="vocal"
+                id="exportSrcVocal" onclick="setExportSrc('vocal')">Vocal-Ready</button>
+      </div>
+    </div>
+
+    <!-- Haupt-Download-Button -->
+    <button class="export-dl-btn" id="btnExportAudio" onclick="doExportAudio()">
+      &#8659; AUDIO HERUNTERLADEN
+    </button>
+    <div id="exportAudioErr" class="export-err" hidden></div>
+
+    <!-- Weitere Exporte -->
+    <div class="export-section">
+      <div class="export-section-lbl">WEITERE EXPORTE</div>
+      <div class="export-other-row">
+        <button class="export-other-btn" onclick="doExportMIDI()">&#8659; MIDI (.mid)</button>
+        <button class="export-other-btn" onclick="doExportJSON()">&#8659; Komposition (.json)</button>
+        <button class="export-other-btn" onclick="doExportPDF()">&#8659; Berater (.pdf)</button>
+      </div>
+      <div id="exportOtherErr" class="export-err" hidden></div>
+      <p class="export-hint">MIDI und JSON verwenden immer die Original-Komposition.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- GM-Beschreibungen und Groove-Genres als JS-Daten -->
+<script>
+const GM_DESCS     = {{ _gm_descs_json | safe }};
+const GROOVE_GENRES= {{ _groove_genres_json | safe }};
+</script>
+
+<style>
+/* ── Seitenstruktur: kein Body-Scroll auf der Generate-Seite ── */
+body  { overflow: hidden; }
+.content { padding-bottom: 0; }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+.gen-layout { display:grid; grid-template-columns:348px 1fr; gap:1.4rem; align-items:stretch; }
+@media(max-width:900px){ .gen-layout{grid-template-columns:1fr;} }
+[hidden] { display:none !important; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+.gen-sidebar {
+  display:flex; flex-direction:column; gap:.55rem;
+  height:calc(100vh - 122px); overflow:hidden;
+}
+.gen-sidebar-scroll {
+  flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+  display:flex; flex-direction:column; gap:.5rem; padding-right:.25rem;
+}
+.gen-sidebar-scroll::-webkit-scrollbar       { width:3px; }
+.gen-sidebar-scroll::-webkit-scrollbar-track { background:transparent; }
+.gen-sidebar-scroll::-webkit-scrollbar-thumb { background:#3a2f6a; border-radius:99px; }
+.gen-sidebar-scroll::-webkit-scrollbar-thumb:hover { background:#7c6dea; box-shadow:0 0 8px rgba(124,109,234,.6); }
+.gen-sf2-bar { display:flex; align-items:center; gap:.4rem; padding:.3rem 0 .2rem; flex-shrink:0; }
+.gen-sf2-lbl { font-size:.58rem; font-weight:700; letter-spacing:.1em; color:var(--tx3); text-transform:uppercase; white-space:nowrap; }
+.gen-sf2-bar .gen-select-sm { flex:1; font-size:.68rem; }
+.gen-generate-btn { flex-shrink:0; margin-top:.3rem; }
+
+/* Kontingent-Leiste */
+.quota-bar {
+  display:flex; align-items:center; gap:.5rem;
+  background:rgba(124,109,234,0.07); border:1px solid rgba(124,109,234,0.18);
+  border-radius:10px; padding:.45rem .75rem; font-size:.76rem;
+}
+.quota-label { color:var(--tx3); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:.65rem; }
+.quota-counts { color:var(--tx2); flex:1; }
+.tier-badge { padding:.15rem .55rem; border-radius:99px; font-size:.62rem; font-weight:700; letter-spacing:.06em; }
+.tier-free  { background:rgba(255,255,255,0.04); color:var(--tx3); border:1px solid var(--line); }
+.tier-pro   { background:rgba(124,109,234,0.15);  color:var(--vl);  border:1px solid rgba(124,109,234,0.3); }
+
+/* Parameter-Abschnitte (accordion) */
+.param-section {
+  background:rgba(255,255,255,0.025);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:11px; overflow:hidden; flex-shrink:0;
+  transition:border-color .2s, box-shadow .2s;
+}
+.param-section:hover { border-color:rgba(124,109,234,0.22); }
+.param-section[open] { border-color:rgba(124,109,234,0.18); box-shadow:0 2px 20px rgba(124,109,234,0.07); }
+.param-section summary {
+  padding:.55rem .85rem; cursor:pointer; font-size:.7rem; font-weight:700;
+  letter-spacing:.1em; color:var(--tx3); text-transform:uppercase;
+  user-select:none; list-style:none; display:flex; align-items:center; gap:.4rem;
+  transition:color .15s;
+}
+.param-section summary:hover { color:var(--tx2); }
+.param-section[open] summary { color:var(--vl); }
+.param-section summary::before { content:'›'; font-size:.9rem; transition:transform .2s; display:inline-block; }
+.param-section[open] summary::before { transform:rotate(90deg); }
+.section-body { padding:.55rem .85rem .85rem; display:flex; flex-direction:column; gap:.55rem; }
+
+/* Felder */
+.field-label { font-size:.7rem; color:var(--tx3); display:flex; flex-direction:column; gap:.22rem; font-weight:600; letter-spacing:.03em; }
+.gen-input,.gen-select,.gen-textarea {
+  background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.08);
+  border-radius:8px; color:var(--tx); font-size:.78rem; padding:.32rem .55rem;
+  width:100%; box-sizing:border-box; transition:border-color .2s, box-shadow .2s;
+  font-family:var(--sans);
+}
+.gen-input:focus,.gen-select:focus,.gen-textarea:focus {
+  outline:none; border-color:var(--v); box-shadow:0 0 0 3px rgba(124,109,234,0.18);
+}
+.gen-select-sm { font-size:.7rem; padding:.22rem .4rem; }
+.gen-textarea  { resize:vertical; min-height:52px; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+
+/* Slider */
+.slider-row { display:flex; align-items:center; gap:.4rem; }
+.slider-row input[type=range] { flex:1; accent-color:var(--v); }
+.slider-val { font-size:.7rem; color:var(--vl); min-width:2.8rem; text-align:right; font-family:var(--mono); }
+
+/* Chips (FX-Varianten, Modus-Auswahl) */
+.fx-chips,.mode-chips,.fusion-mode-chips { display:flex; gap:.35rem; flex-wrap:wrap; }
+.chip {
+  background:transparent; border:1px solid rgba(255,255,255,0.09);
+  border-radius:99px; color:var(--tx3); font-size:.69rem; padding:.22rem .65rem;
+  cursor:pointer; transition:all .18s; font-weight:500;
+}
+.chip:hover { border-color:rgba(124,109,234,0.4); color:var(--vl); background:rgba(124,109,234,0.06); }
+.chip-active { background:rgba(124,109,234,0.15); border-color:rgba(124,109,234,0.45); color:var(--vl); }
+
+.hint { font-size:.68rem; color:var(--tx3); margin:.2rem 0 0; line-height:1.5; }
+.fusion-sub { margin-top:.4rem; }
+
+/* Mixer */
+.mixer-grid { gap:.3rem !important; padding-right:.15rem; }
+.mixer-row { display:grid; grid-template-columns:64px 1fr 90px; align-items:start; gap:.4rem; padding:.2rem 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.mixer-label { font-size:.7rem; color:var(--tx3); padding-top:.3rem; }
+.mixer-instr-wrap { display:flex; flex-direction:column; gap:.15rem; }
+.instr-desc { font-size:.63rem; color:var(--tx3); line-height:1.3; opacity:.7; }
+.vol-wrap { display:flex; align-items:center; gap:.3rem; padding-top:.3rem; }
+.vol-slider { flex:1; accent-color:var(--v); }
+.vol-val { font-size:.66rem; color:var(--vl); min-width:28px; text-align:right; font-family:var(--mono); }
+
+/* Generate-Button */
+.btn-full { width:100%; }
+.gen-generate-btn .btn {
+  width:100%; padding:.72rem; font-size:.84rem; font-weight:700;
+  letter-spacing:.07em; border-radius:12px;
+  background:linear-gradient(135deg,#6d5df0 0%,#9c7cf8 100%);
+  color:#fff; border:none;
+  box-shadow:0 4px 24px rgba(109,93,240,0.42);
+  transition:all .22s; position:relative; overflow:hidden;
+}
+.gen-generate-btn .btn::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(to right,transparent 0%,rgba(255,255,255,0.1) 50%,transparent 100%);
+  transform:translateX(-100%); transition:transform .5s ease;
+}
+.gen-generate-btn .btn:hover { box-shadow:0 6px 32px rgba(109,93,240,0.62); transform:translateY(-1px); }
+.gen-generate-btn .btn:hover::after { transform:translateX(100%); }
+
+/* ── Rechtes Panel ───────────────────────────────────────────────── */
+/* Rechtes Panel scrollt eigenstaendig — kein Body-Scroll noetig */
+.gen-main {
+  display:flex; flex-direction:column; gap:.9rem;
+  height:calc(100vh - 122px); overflow-y:auto; overflow-x:hidden; padding-right:.2rem;
+}
+.gen-main::-webkit-scrollbar       { width:3px; }
+.gen-main::-webkit-scrollbar-track { background:transparent; }
+.gen-main::-webkit-scrollbar-thumb { background:#3a2f6a; border-radius:99px; }
+.gen-main::-webkit-scrollbar-thumb:hover { background:var(--v); }
+.spinner-wrap { display:flex; align-items:center; justify-content:center; gap:.6rem; padding:2.5rem; color:var(--tx3); font-size:.84rem; }
+.spinner { width:22px; height:22px; border:3px solid rgba(124,109,234,0.2); border-top-color:var(--v); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.gen-error { background:rgba(248,113,113,0.07); border:1px solid rgba(248,113,113,0.25); border-radius:8px; color:var(--red); padding:.6rem .85rem; font-size:.79rem; }
+
+/* ── Tabs ────────────────────────────────────────────────────────── */
+.tab-bar {
+  display:flex; gap:.2rem; padding:.25rem;
+  background:rgba(0,0,0,0.28); border-radius:11px; margin-bottom:.8rem;
+  border:1px solid var(--line); flex-wrap:wrap;
+}
+.tab-btn {
+  background:transparent; border:none; border-radius:8px;
+  color:var(--tx3); font-size:.7rem; padding:.3rem .75rem;
+  cursor:pointer; transition:all .2s; font-weight:500; letter-spacing:.02em;
+}
+.tab-btn:hover { color:var(--tx2); background:rgba(255,255,255,0.04); }
+.tab-btn.tab-active { background:rgba(124,109,234,0.16); color:var(--vl); box-shadow:0 0 0 1px rgba(124,109,234,0.28); }
+.tab-pane { display:none; }
+.tab-pane.tab-active { display:block; }
+
+/* Empty-States */
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:280px; color:var(--tx3); text-align:center; gap:.7rem; }
+.empty-icon { font-size:2.8rem; opacity:.5; }
+.empty-state p { font-size:.81rem; line-height:1.6; max-width:300px; }
+
+/* ── Vorschau ────────────────────────────────────────────────────── */
+.audio-section { display:flex; flex-direction:column; gap:.35rem; margin-bottom:.7rem; }
+.audio-label { font-size:.68rem; color:var(--tx3); margin:0; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+/* Waveform-Spieler */
+.wave-player { display:flex; flex-direction:column; gap:.38rem; }
+.wave-player-canvas { width:100%; height:62px; background:#06060f; border:1px solid rgba(255,255,255,0.06); border-radius:8px; display:block; cursor:pointer; transition:border-color .2s; }
+.wave-player-canvas:hover { border-color:rgba(124,109,234,0.3); }
+.wave-player-controls { display:flex; align-items:center; gap:.75rem; }
+.wave-player-btn {
+  background:rgba(124,109,234,0.18); border:1px solid rgba(124,109,234,0.3);
+  border-radius:50%; width:32px; height:32px; color:var(--vl); font-size:.82rem;
+  cursor:pointer; flex-shrink:0; transition:all .18s;
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+.wave-player-btn:hover { background:rgba(124,109,234,0.32); box-shadow:0 0 12px rgba(124,109,234,0.4); }
+.wave-player-time { font-size:.68rem; color:var(--tx3); font-family:var(--mono); }
+.save-form { margin-top:.6rem; }
+.btn-full { width:100%; }
+
+/* ── Ausgabe-Tab ─────────────────────────────────────────────────── */
+.out-header { padding:.5rem 0 .4rem; }
+.out-title { font-size:1rem; font-weight:700; color:var(--tx); letter-spacing:.02em; }
+.out-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin:.65rem 0; }
+.out-meta-row { display:flex; align-items:center; gap:.6rem; padding:.32rem .65rem; border-bottom:1px solid rgba(255,255,255,0.04); }
+.out-meta-row:last-child,.out-meta-row:nth-last-child(2) { border-bottom:none; }
+.out-meta-k { font-size:.65rem; color:var(--tx3); min-width:72px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.out-meta-v { font-size:.76rem; color:var(--tx2); }
+.out-section { margin-top:.75rem; }
+.out-section-hdr { font-size:.63rem; font-weight:700; letter-spacing:.1em; color:var(--v); margin-bottom:.35rem; text-transform:uppercase; }
+.out-chords { display:flex; flex-wrap:wrap; gap:.3rem; }
+.chord-pill { background:rgba(124,109,234,0.1); border:1px solid rgba(124,109,234,0.25); border-radius:6px; color:var(--vl); font-size:.7rem; padding:.18rem .5rem; font-family:var(--mono); }
+.out-tracks-table { font-size:.74rem; }
+.out-track-row { display:flex; justify-content:space-between; padding:.22rem 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.out-track-name { color:var(--tx3); font-family:var(--mono); }
+.out-track-count { color:var(--tx2); }
+
+/* ── Wellenform-Tab ──────────────────────────────────────────────── */
+/* Horizontaler Scroll-Container fuer den Zoom-Modus */
+.wave-scroll-wrap {
+  overflow-x:auto; overflow-y:hidden;
+  border-radius:8px; margin-bottom:.45rem;
+  border:1px solid rgba(255,255,255,0.06);
+}
+.wave-scroll-wrap::-webkit-scrollbar       { height:4px; }
+.wave-scroll-wrap::-webkit-scrollbar-track { background:rgba(0,0,0,0.3); border-radius:99px; }
+.wave-scroll-wrap::-webkit-scrollbar-thumb { background:rgba(124,109,234,0.35); border-radius:99px; }
+.wave-scroll-wrap::-webkit-scrollbar-thumb:hover { background:var(--v); }
+.wave-canvas { height:140px; background:#06060f; display:block; min-width:100%; }
+.waveform-controls { display:flex; gap:.4rem; }
+
+/* ── Piano Roll ──────────────────────────────────────────────────── */
+.roll-toggles { display:flex; flex-wrap:wrap; gap:.3rem; margin-bottom:.4rem; }
+.roll-toggle-btn { font-size:.66rem; padding:.15rem .5rem; border-radius:99px; border:1px solid transparent; cursor:pointer; opacity:.85; }
+.roll-toggle-btn.inactive { opacity:.3; }
+.roll-viewport { display:flex; overflow-x:auto; }
+.roll-keys { flex-shrink:0; background:#06060f; border:1px solid rgba(255,255,255,0.06); border-right:none; border-radius:8px 0 0 8px; display:block; }
+.roll-canvas-box { overflow-x:auto; flex:1; }
+.roll-canvas { height:240px; background:#06060f; border:1px solid rgba(255,255,255,0.06); border-left:none; border-radius:0 8px 8px 0; display:block; cursor:crosshair; }
+.roll-info { display:flex; gap:1rem; font-size:.7rem; color:var(--tx3); margin-top:.35rem; }
+
+/* ── Production Advisor ──────────────────────────────────────────── */
+.adv-section { background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:8px; margin-bottom:.4rem; overflow:hidden; transition:border-color .18s; }
+.adv-section:hover { border-color:rgba(124,109,234,0.18); }
+.adv-section summary { padding:.45rem .75rem; cursor:pointer; font-size:.69rem; font-weight:700; letter-spacing:.08em; color:var(--v); text-transform:uppercase; user-select:none; list-style:none; transition:color .15s; }
+.adv-section summary:hover { color:var(--vl); }
+.adv-body { padding:.5rem .75rem .65rem; display:flex; flex-direction:column; gap:.3rem; }
+.adv-kv-table { display:flex; flex-direction:column; gap:.08rem; }
+.adv-kv-row { display:flex; justify-content:space-between; padding:.2rem 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:.73rem; }
+.adv-kv-k { color:var(--tx3); } .adv-kv-v { color:var(--tx2); text-align:right; max-width:60%; }
+.adv-table { width:100%; border-collapse:collapse; font-size:.71rem; }
+.adv-table th { color:var(--tx3); font-weight:700; text-align:left; padding:.25rem .4rem; border-bottom:1px solid rgba(255,255,255,0.06); font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; }
+.adv-table td { padding:.2rem .4rem; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--tx2); vertical-align:top; }
+.adv-table tr:last-child td { border-bottom:none; }
+.adv-fx-track { margin-bottom:.6rem; }
+.adv-fx-track-hdr { font-size:.68rem; font-weight:700; color:var(--v); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.2rem; }
+.adv-fx-slot { display:grid; grid-template-columns:18px 1fr; gap:.2rem; padding:.15rem 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:.69rem; }
+.adv-fx-slot:last-child { border-bottom:none; }
+.adv-fx-num { color:var(--tx3); } .adv-fx-detail { color:var(--tx2); }
+.adv-fx-effect { color:var(--vl); font-weight:600; }
+.adv-export-spec { margin-bottom:.5rem; }
+.adv-export-hdr { font-size:.68rem; font-weight:700; color:var(--green); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.2rem; }
+
+/* ── Groove & Mix ────────────────────────────────────────────────── */
+.groove-solo-bar { display:flex; gap:.5rem; margin-bottom:.35rem; }
+.groove-all-btn { background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); border-radius:6px; color:var(--green); font-size:.7rem; font-weight:700; letter-spacing:.05em; padding:.3rem .7rem; cursor:pointer; transition:all .18s; }
+.groove-all-btn:hover { background:rgba(52,211,153,0.14); }
+.groove-reset-btn { background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:6px; color:var(--tx3); font-size:.7rem; padding:.3rem .7rem; cursor:pointer; transition:all .18s; }
+.groove-reset-btn:hover { color:var(--tx2); border-color:rgba(255,255,255,0.15); }
+
+.groove-solo-rows { display:flex; flex-direction:column; gap:.15rem; margin-bottom:.35rem; }
+.gsolo-row { display:grid; grid-template-columns:22px 72px 1fr 50px 24px 24px 120px; align-items:center; gap:.3rem; font-size:.7rem; padding:.18rem 0; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; border-radius:4px; transition:background .12s; }
+.gsolo-row:last-child { border-bottom:none; }
+.gsolo-row:hover { background:rgba(255,255,255,0.02); }
+.gsolo-row.gsolo-selected { background:rgba(124,109,234,0.07); }
+.gsolo-play-btn { background:rgba(52,211,153,0.07); border:1px solid rgba(52,211,153,0.2); border-radius:4px; color:var(--green); font-size:.63rem; padding:.1rem .25rem; cursor:pointer; flex-shrink:0; transition:all .15s; }
+.gsolo-play-btn:hover { background:rgba(52,211,153,0.14); }
+.gsolo-play-btn.gsolo-loading { color:var(--tx3); border-color:var(--line); }
+.gsolo-play-btn.gsolo-ready { background:rgba(52,211,153,0.12); border-color:rgba(52,211,153,0.3); color:var(--green); }
+.gsolo-label { color:var(--vl); font-family:var(--mono); font-size:.68rem; font-weight:700; text-transform:uppercase; }
+.gsolo-db { color:var(--v); font-family:var(--mono); font-size:.66rem; min-width:48px; text-align:right; }
+.gsolo-pan { font-size:.63rem; color:var(--tx3); text-align:center; }
+.gsolo-wave { border:1px solid rgba(255,255,255,0.05); border-radius:3px; background:#06060f; display:block; }
+
+.groove-param-panel { background:rgba(255,255,255,0.02); border:1px solid rgba(124,109,234,0.15); border-radius:8px; padding:.5rem .65rem; margin-bottom:.35rem; }
+.groove-param-grid { display:flex; flex-wrap:wrap; gap:.4rem .8rem; margin-top:.3rem; }
+.groove-param-lbl { font-size:.7rem; color:var(--tx3); display:flex; flex-direction:column; gap:.2rem; }
+.groove-save-param-btn { margin-top:.4rem; font-size:.7rem; color:var(--green); border-color:rgba(52,211,153,0.25); }
+.groove-humanize-block { background:rgba(52,211,153,0.04); border:1px solid rgba(52,211,153,0.15); border-radius:8px; padding:.45rem .65rem; margin-bottom:.35rem; }
+.groove-section-hdr { font-size:.64rem; font-weight:700; letter-spacing:.1em; color:var(--v); text-transform:uppercase; }
+.groove-sub-section { background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:7px; overflow:hidden; margin-bottom:.3rem; }
+.groove-sub-section summary { padding:.35rem .6rem; cursor:pointer; font-size:.7rem; color:var(--tx3); text-transform:uppercase; letter-spacing:.05em; user-select:none; list-style:none; transition:color .15s; }
+.groove-sub-section summary:hover { color:var(--tx2); }
+.groove-instr-rows { display:flex; flex-direction:column; gap:.25rem; padding:.4rem .6rem; }
+.groove-instr-row { display:grid; grid-template-columns:70px 1fr; align-items:center; gap:.4rem; font-size:.7rem; }
+.groove-instr-lbl { color:var(--tx3); font-family:var(--mono); text-transform:uppercase; font-size:.66rem; }
+
+.groove-rows { display:flex; flex-direction:column; gap:.15rem; margin-bottom:.35rem; }
+.groove-row { display:grid; grid-template-columns:72px 50px 1fr 40px 60px 26px 26px; align-items:center; gap:.3rem; font-size:.7rem; padding:.18rem 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.groove-row:last-child { border-bottom:none; }
+.groove-label { color:var(--tx3); }
+.groove-db { color:var(--v); font-family:var(--mono); font-size:.68rem; }
+.groove-pan-val { font-size:.65rem; color:var(--tx3); text-align:center; }
+.groove-btn { background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:4px; color:var(--tx3); font-size:.63rem; padding:.12rem .32rem; cursor:pointer; transition:all .15s; }
+.groove-btn:hover { color:var(--tx2); border-color:rgba(255,255,255,0.15); }
+.groove-btn.active { color:var(--green); border-color:rgba(52,211,153,0.35); background:rgba(52,211,153,0.07); }
+
+.groove-apply-btn {
+  width:100%; border-radius:9px; padding:.45rem; cursor:pointer; margin-top:.25rem;
+  background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.3);
+  color:var(--amber); font-size:.76rem; font-weight:700; letter-spacing:.07em;
+  transition:all .18s;
+}
+.groove-apply-btn:hover { background:rgba(251,191,36,0.14); box-shadow:0 0 16px rgba(251,191,36,0.2); }
+.groove-apply-btn:disabled { opacity:.4; cursor:not-allowed; }
+.groove-rerendered { background:rgba(52,211,153,0.04); border:1px solid rgba(52,211,153,0.18); border-radius:8px; padding:.5rem .65rem; margin-top:.35rem; }
+
+/* Prompt-Ergebnis */
+.prompt-result { background:rgba(52,211,153,0.05); border:1px solid rgba(52,211,153,0.18); border-radius:7px; padding:.4rem .65rem; font-size:.7rem; color:var(--green); margin-top:.35rem; }
+.btn-sm { font-size:.7rem; padding:.22rem .5rem; }
+
+/* ── Export-Modal ────────────────────────────────────────────────── */
+.export-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.78); z-index:9000;
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+}
+.export-overlay[hidden] { display:none !important; }
+.export-modal {
+  background:#0f0f1a; border:1px solid rgba(124,109,234,0.2);
+  border-radius:14px; width:min(560px,95vw); max-height:90vh; overflow-y:auto;
+  padding:1.5rem 1.7rem; display:flex; flex-direction:column; gap:1.1rem;
+  box-shadow:0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,109,234,0.1);
+}
+.export-modal-hdr { display:flex; align-items:center; justify-content:space-between; }
+.export-modal-title { font-size:.84rem; font-weight:700; letter-spacing:.1em; color:var(--vl); text-transform:uppercase; }
+.export-close { background:rgba(255,255,255,0.05); border:1px solid var(--line); border-radius:6px; color:var(--tx3); font-size:.9rem; cursor:pointer; padding:.2rem .45rem; transition:all .15s; }
+.export-close:hover { color:var(--tx); border-color:rgba(255,255,255,0.15); }
+.export-section { display:flex; flex-direction:column; gap:.5rem; }
+.export-section-lbl { font-size:.62rem; font-weight:700; letter-spacing:.12em; color:var(--tx3); text-transform:uppercase; }
+.export-format-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.4rem; }
+.export-fmt-btn {
+  background:rgba(255,255,255,0.03); border:1px solid var(--line);
+  border-radius:8px; color:var(--tx3); font-size:.68rem; padding:.38rem .5rem;
+  cursor:pointer; text-align:left; transition:all .18s; line-height:1.4;
+}
+.export-fmt-btn:hover { border-color:rgba(124,109,234,0.35); color:var(--tx2); background:rgba(124,109,234,0.06); }
+.export-fmt-btn.export-fmt-active { background:rgba(124,109,234,0.14); border-color:rgba(124,109,234,0.45); color:var(--vl); }
+.export-fmt-badge { font-size:.58rem; color:var(--amber); font-weight:700; }
+.export-src-chips { display:flex; gap:.35rem; flex-wrap:wrap; }
+.export-src-btn { font-size:.7rem; }
+.export-dl-btn {
+  width:100%; border-radius:10px; padding:.6rem;
+  background:linear-gradient(135deg,#6d5df0,#9c7cf8);
+  border:none; color:#fff; font-size:.8rem; font-weight:700; letter-spacing:.07em;
+  cursor:pointer; transition:all .2s;
+  box-shadow:0 4px 18px rgba(109,93,240,0.35);
+}
+.export-dl-btn:hover { box-shadow:0 6px 24px rgba(109,93,240,0.55); transform:translateY(-1px); }
+.export-dl-btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.export-other-row { display:flex; gap:.5rem; flex-wrap:wrap; }
+.export-other-btn {
+  flex:1; min-width:120px; background:rgba(255,255,255,0.03); border:1px solid var(--line);
+  border-radius:8px; color:var(--tx3); font-size:.7rem; padding:.38rem .5rem;
+  cursor:pointer; transition:all .18s;
+}
+.export-other-btn:hover { border-color:rgba(52,211,153,0.35); color:var(--green); background:rgba(52,211,153,0.05); }
+.export-hint { font-size:.66rem; color:var(--tx3); line-height:1.5; margin-top:.1rem; }
+.export-err { font-size:.7rem; color:var(--red); background:rgba(248,113,113,0.07); border:1px solid rgba(248,113,113,0.25); border-radius:6px; padding:.35rem .55rem; margin-top:.25rem; }
+
+/* ── Palette-Panel ───────────────────────────────────────────────── */
+.palette-panel { background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; display:flex; flex-direction:column; gap:.3rem; margin-bottom:.35rem; }
+.palette-desc { font-size:.67rem; color:var(--tx3); line-height:1.5; }
+.palette-fx-row { display:flex; gap:.3rem; }
+.palette-fx-btn { flex:1; background:transparent; border:1px solid var(--line); border-radius:99px; color:var(--tx3); font-size:.63rem; font-weight:700; letter-spacing:.05em; padding:.25rem .35rem; cursor:pointer; transition:all .18s; text-align:center; }
+.palette-fx-btn:hover { border-color:rgba(124,109,234,0.35); color:var(--vl); }
+.palette-fx-btn.palette-fx-active { background:rgba(124,109,234,0.15); border-color:rgba(124,109,234,0.4); color:var(--vl); }
+
+/* ── Theorie-Pruefer ─────────────────────────────────────────────── */
+.theory-panel { background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; display:flex; flex-direction:column; gap:.3rem; margin-bottom:.35rem; }
+.theory-header { display:flex; align-items:center; justify-content:space-between; }
+.theory-score-row { display:flex; align-items:center; gap:.4rem; margin:.1rem 0; }
+.theory-score-lbl { font-size:.61rem; font-weight:700; color:var(--tx3); letter-spacing:.06em; min-width:36px; text-transform:uppercase; }
+.theory-bar-wrap { flex:1; height:5px; background:rgba(255,255,255,0.06); border-radius:99px; overflow:hidden; }
+.theory-bar-fill { height:100%; background:linear-gradient(90deg,var(--vd),var(--vl)); border-radius:99px; transition:width .4s ease; width:0%; }
+.theory-score-num { font-size:.73rem; font-weight:700; color:var(--tx2); min-width:40px; text-align:right; font-family:var(--mono); }
+.theory-grade-badge { font-size:.6rem; font-weight:700; letter-spacing:.05em; color:var(--tx3); min-width:90px; text-align:right; }
+.theory-checks { display:flex; flex-direction:column; gap:.14rem; }
+.theory-check { display:grid; grid-template-columns:16px 90px 1fr; align-items:start; gap:.3rem; font-size:.68rem; padding:.05rem 0; }
+.tc-dot { font-size:.66rem; color:var(--tx3); line-height:1.4; }
+.tc-lbl { color:var(--tx2); font-weight:600; font-size:.66rem; }
+.tc-det { color:var(--tx3); font-size:.64rem; line-height:1.4; }
+.theory-feedback { font-size:.68rem; color:var(--amber); background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.2); border-radius:6px; padding:.3rem .55rem; line-height:1.5; }
+
+/* ── BDRA & SF2 ──────────────────────────────────────────────────── */
+.bdra-code { font-size:.6rem; color:var(--v); font-family:var(--mono); letter-spacing:.03em; }
+.sf2-panel { background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; display:flex; flex-direction:column; gap:.3rem; margin-bottom:.35rem; }
+.sf2-upload-row { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+.sf2-upload-lbl { font-size:.66rem; color:var(--tx3); white-space:nowrap; }
+.sf2-filename { font-size:.66rem; color:var(--vl); font-family:var(--mono); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sf2-progress { font-size:.66rem; color:var(--tx3); }
+</style>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   generate.html — Interaktionsskript
+══════════════════════════════════════════════════════════════════ */
+
+// Globaler Zustand
+const G = {
+  currentUuid:         null,
+  vocalUuid:           null,
+  rerenderUuid:        null,
+  pianoRollData:       null,
+  pianoRollVis:        {},
+  waveZoom:            1.0,
+  audioCtx:            null,
+  lastData:            null,   // komplette Serverantwort der letzten Generierung
+  grooveState:         {},     // {track: {gain_db, pan, muted, soloed, swing_pct, ...}}
+  selectedGrooveTrack: null,
+  soloUrls:            {},     // gecachte Solo-Audio-URLs {trackKey: url}
+  playingTrack:        null,   // aktuell abgespielter Solo-Track-Key
+  currentPalette:      null,   // gewaehlte Palette {id, name, instruments: {...}}
+  currentFxVariant:    'neutral',
+  paletteData:         null,   // {palettes: [...], fx_variants: [...]}
+  sf2Key:              null,   // gewaehlter Preset-Soundfont-Key
+  sf2Uuid:             null,   // UUID der hochgeladenen SF2-Datei
+};
+
+const $ = id => document.getElementById(id);
+
+// ── Chip-Gruppen ──────────────────────────────────────────────────
+function initChipGroup(id) {
+  const w = $(id); if (!w) return;
+  w.querySelectorAll('.chip').forEach(b => {
+    b.addEventListener('click', () => {
+      w.querySelectorAll('.chip').forEach(x => x.classList.remove('chip-active'));
+      b.classList.add('chip-active');
+      w.dataset.value = b.dataset.v;
+      if (id === 'fusionMode') onFusionModeChange(b.dataset.v);
+    });
+  });
+}
+function chipVal(id) { return ($(id)||{}).dataset?.value||''; }
+
+// ── Slider-Live-Anzeige ─────────────────────────────────────────
+function bindSlider(id, vid, fmt) {
+  const sl=$(id), vl=$(vid); if(!sl||!vl) return;
+  const u=()=>{ vl.textContent=fmt(sl.value); };
+  sl.addEventListener('input',u); u();
+}
+
+// ── Fusion-Unterabschnitte ──────────────────────────────────────
+function onFusionModeChange(m) {
+  const pb=$('fusionPresetBox'), cb=$('fusionCustomBox');
+  if(pb) pb.hidden=(m!=='preset'); if(cb) cb.hidden=(m!=='custom');
+}
+
+// ── Instrument-Beschreibung beim Aendern der Auswahl anzeigen ──
+function onInstrChange(track, val) {
+  const descEl = $('desc_' + track);
+  if (!descEl) return;
+  if (!val) { descEl.textContent = ''; return; }
+  const trackDescs = GM_DESCS[track] || {};
+  descEl.textContent = trackDescs[parseInt(val)] || '';
+}
+
+// ── Prompt dekodieren ──────────────────────────────────────────
+async function decodePrompt() {
+  const text = $('promptText')?.value?.trim(); if(!text) return;
+  try {
+    const res  = await fetch('/decode_prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:text})});
+    const data = await res.json();
+    applyDecodedPrompt(data);
+  } catch(_){}
+}
+
+function applyDecodedPrompt(d) {
+  const box=$('promptResult'); if(!box) return;
+  box.textContent = (d&&!d.is_empty)?(d.summary||''):'Keine Parameter erkannt.';
+  box.hidden=false;
+  if(d.genre){const s=$('genre');if(s)s.value=d.genre;}
+  if(d.bpm!=null){const i=$('bpm');if(i)i.value=Math.round(d.bpm);}
+  if(d.scale_hint){const s=$('keyScale');if(s)s.value=d.scale_hint;}
+  if(d.tension_multiplier!=null){const sl=$('tension');if(sl){sl.value=Math.min(1.5,d.tension_multiplier);sl.dispatchEvent(new Event('input'));}}
+  if(d.complexity!=null){const sl=$('complexity');if(sl){sl.value=d.complexity;sl.dispatchEvent(new Event('input'));}}
+}
+
+// ── Beat generieren ────────────────────────────────────────────
+async function generateBeat() {
+  setGenerating(true); hideError();
+  const body = {
+    genre:$('genre')?.value, bpm:$('bpm')?.value||null,
+    complexity:$('complexity')?.value, seed:$('seed')?.value||null,
+    key_note:$('keyNote')?.value, key_scale:$('keyScale')?.value,
+    duration_bars:$('durationBars')?.value,
+    humanize:$('humanize')?.value, mutation:$('mutation')?.value, tension:$('tension')?.value,
+    fx_variant:chipVal('fxVariant'), generation_mode:chipVal('genMode'),
+    prompt:$('promptText')?.value||'',
+    fusion_mode:chipVal('fusionMode'),
+    fusion_preset:$('fusionPreset')?.value||null,
+    fusion_genre1:$('fusionGenre1')?.value||null,
+    fusion_genre2:$('fusionGenre2')?.value||null,
+    fusion_ratio:$('fusionRatio')?.value||0.5,
+    instr_drums:$('instr_drums')?.value||null,
+    instr_percussion:$('instr_percussion')?.value||null,
+    instr_bass:$('instr_bass')?.value||null,
+    instr_chords:$('instr_chords')?.value||null,
+    instr_lead:$('instr_lead')?.value||null,
+    instr_pad:$('instr_pad')?.value||null,
+    instr_arp:$('instr_arp')?.value||null,
+    instr_stabs:$('instr_stabs')?.value||null,
+    instr_texture:$('instr_texture')?.value||null,
+    instr_fx:$('instr_fx')?.value||null,
+    vol_drums:$('vol_drums')?.value, vol_percussion:$('vol_percussion')?.value,
+    vol_bass:$('vol_bass')?.value, vol_chords:$('vol_chords')?.value,
+    vol_lead:$('vol_lead')?.value, vol_pad:$('vol_pad')?.value,
+    vol_arp:$('vol_arp')?.value, vol_stabs:$('vol_stabs')?.value,
+    vol_texture:$('vol_texture')?.value, vol_fx:$('vol_fx')?.value,
+    // Soundfont-Parameter — falls ausgewaehlt, wird FluidSynth statt Builtin verwendet.
+    sf2_key:  G.sf2Key  || null,
+    sf2_uuid: G.sf2Uuid || null,
+  };
+  try {
+    const res=await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok||data.error){showError(data.error||'Generierung fehlgeschlagen.');return;}
+    onSuccess(data);
+  } catch(e){showError('Netzwerkfehler: '+e.message);}
+  finally{setGenerating(false);}
+}
+
+// ── Ergebnis verarbeiten ───────────────────────────────────────
+function onSuccess(data) {
+  G.currentUuid=data.uuid; G.vocalUuid=data.vocal_uuid;
+  G.pianoRollData=data.piano_roll; G.lastData=data;
+
+  // Vorschau-Tab — Waveform-Spieler laden
+  WellenformSpieler.load('audioPlayer', 'playerWaveCanvas', data.audio_url);
+  const vs=$('vocalSection');
+  if (data.vocal_url && vs) {
+    vs.hidden=false;
+    WellenformSpieler.load('audioPlayerVocal', 'playerWaveCanvasVocal', data.vocal_url);
+  } else if(vs) { vs.hidden=true; }
+  const pw=$('playerWrap'); if(pw)pw.hidden=false;
+  $('previewEmpty').hidden=true;
+
+  // Ausgabe-Tab
+  buildOutputTab(data.output_meta||{});
+
+  // Wellenform
+  renderWaveform(data.audio_url);
+
+  // Piano Roll
+  if(data.piano_roll) renderPianoRoll(data.piano_roll);
+
+  // Advisor
+  buildAdvisor(data);
+
+  switchTab('preview');
+}
+
+// ── Ausgabe-Tab aufbauen ───────────────────────────────────────
+function buildOutputTab(meta) {
+  $('outputEmpty').hidden=true; $('outputWrap').hidden=false;
+
+  setText('outTitle',    meta.title||'');
+  setText('outAlbum',    (meta.genre||'').replace(/^\w/,c=>c.toUpperCase())+' Sessions');
+  setText('outGenre',    (meta.genre||'').replace(/^\w/,c=>c.toUpperCase()));
+  setText('outYear',     meta.year||new Date().getFullYear());
+  setText('outDuration', meta.duration_display||'—');
+  setText('outBitrate',  meta.bitrate_kbps ? meta.bitrate_kbps+' kbps' : '—');
+  setText('outSampleRate',meta.sample_rate ? meta.sample_rate.toLocaleString()+' Hz' : '—');
+  setText('outBars',     meta.total_bars||'—');
+
+  // Akkorde
+  const cc=$('outChords'); if(cc) {
+    const chords=meta.chord_progression||[];
+    if(chords.length) {
+      cc.innerHTML=chords.map(c=>`<span class="chord-pill">${esc(c)}</span>`).join('');
+    } else {
+      cc.textContent='—';
+    }
+  }
+
+  // Spurstatistik
+  const tc=$('outTracks'); if(tc) {
+    const ev=meta.track_events||{};
+    const rows=Object.entries(ev).sort(([a],[b])=>a.localeCompare(b));
+    if(rows.length) {
+      tc.innerHTML=rows.map(([k,n])=>
+        `<div class="out-track-row"><span class="out-track-name">${esc(k)}</span><span class="out-track-count">${n} Ereignisse</span></div>`
+      ).join('');
+    } else {
+      tc.textContent='—';
+    }
+  }
+}
+
+// ── Wellenform ──────────────────────────────────────────────────
+async function renderWaveform(url) {
+  const c=$('waveCanvas'); if(!c) return;
+  $('waveformEmpty').hidden=true; $('waveformWrap').hidden=false;
+  try {
+    if(!G.audioCtx) G.audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const buf=await(await fetch(url)).arrayBuffer();
+    drawWaveform(c, await G.audioCtx.decodeAudioData(buf));
+  } catch(e){console.warn('Wellenform:',e);}
+}
+
+function drawWaveform(canvas, ab) {
+  const dpr = window.devicePixelRatio || 1;
+  // Zoom verbreitert den Canvas — der Scroll-Container erhaelt eine Scrollleiste
+  const wrap = canvas.parentElement;
+  const containerW = (wrap?.clientWidth) || 600;
+  const W = Math.round(containerW * G.waveZoom);
+  const H = 140;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#06060f'; ctx.fillRect(0, 0, W, H);
+  const d = ab.getChannelData(0);
+  const samp = Math.max(1, Math.floor(d.length / W));
+  const mid = H / 2, amp = mid * .9;
+  ctx.strokeStyle = '#7c6dea'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let x = 0; x < W; x++) {
+    let mn = 1, mx = -1;
+    const s = Math.floor(x * samp), e = Math.min(s + samp, d.length);
+    for (let i = s; i < e; i++) { if (d[i] < mn) mn = d[i]; if (d[i] > mx) mx = d[i]; }
+    if (x === 0) ctx.moveTo(x, mid + mn * amp);
+    ctx.lineTo(x, mid + mn * amp); ctx.lineTo(x, mid + mx * amp);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke();
+}
+
+// ── Waveform-Vorschau-Spieler ────────────────────────────────────
+// Interaktiver Canvas-Spieler fuer den "Vorschau & Speichern"-Tab.
+const WellenformSpieler = {
+  _buffers: {}, // Gecachte AudioBuffer: playerId → AudioBuffer
+
+  // Sekunden als M:SS formatieren
+  _fmt(s) {
+    if (!isFinite(s) || s < 0) return '0:00';
+    return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  },
+
+  // URL laden, Audio dekodieren und Wellenform zeichnen
+  async load(playerId, canvasId, url) {
+    const audio = $(playerId);
+    if (!audio) return;
+    audio.src = url; audio.load();
+    try {
+      if (!G.audioCtx) G.audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+      const ab = await (await fetch(url)).arrayBuffer();
+      const decoded = await G.audioCtx.decodeAudioData(ab);
+      this._buffers[playerId] = decoded;
+      this.draw(canvasId, decoded, 0);
+      const tId = playerId === 'audioPlayer' ? 'playerTimeDisplay' : 'playerTimeDisplayVocal';
+      const t = $(tId); if (t) t.textContent = `0:00 / ${this._fmt(decoded.duration)}`;
+    } catch(e) { console.warn('Waveform-Spieler Ladefehler:', e); }
+  },
+
+  // Wellenform-Balken mit Abspiel-Fortschritt zeichnen; progress = 0.0–1.0
+  draw(canvasId, buf, progress) {
+    const canvas = $(canvasId);
+    if (!canvas || !buf) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth || 300;
+    const H = canvas.clientHeight || 56;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    const daten = buf.getChannelData(0);
+    const N = Math.max(1, Math.floor(W / 3)); // ca. 1 Balken pro 3px
+    const schritt = Math.max(1, Math.floor(daten.length / N));
+    const balkenB = W / N;
+    const gespX = progress * W;
+
+    for (let i = 0; i < N; i++) {
+      // RMS-Amplitude fuer dieses Segment berechnen
+      let sum = 0;
+      const start = i * schritt;
+      const end = Math.min(start + schritt, daten.length);
+      for (let j = start; j < end; j++) sum += daten[j] * daten[j];
+      const rms = Math.sqrt(sum / Math.max(1, end - start));
+      const hoehe = Math.max(2, Math.min(rms * H * 3.2, H * 0.95));
+      const x = i * balkenB + balkenB * 0.12;
+      const w = Math.max(1, balkenB * 0.76);
+      const y = (H - hoehe) / 2;
+      const mitte = (i + 0.5) * balkenB;
+      ctx.fillStyle = mitte < gespX ? '#7c6dea' : '#2a2a40';
+      ctx.fillRect(x, y, w, hoehe);
+    }
+
+    // Abspielkopf als weisse vertikale Linie
+    if (progress > 0.004 && progress < 0.996) {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(Math.round(gespX) - 1, 0, 2, H);
+    }
+  },
+
+  // Fortschritt aus Audio-Element lesen und Anzeige aktualisieren
+  update(playerId, canvasId, timeId) {
+    const audio = $(playerId);
+    const buf = this._buffers[playerId];
+    if (!audio || !buf || !audio.duration) return;
+    const progress = audio.currentTime / audio.duration;
+    this.draw(canvasId, buf, progress);
+    const t = $(timeId);
+    if (t) t.textContent = `${this._fmt(audio.currentTime)} / ${this._fmt(audio.duration)}`;
+  },
+
+  // Abspiel-Knopf auf "Play" zuruecksetzen (nach Ende)
+  resetBtn(btnId) {
+    const b = $(btnId); if (b) b.textContent = '▶';
+  }
+};
+
+function playerTogglePlay() {
+  const audio = $('audioPlayer');
+  if (!audio || !audio.src) return;
+  if (audio.paused) {
+    audio.play().catch(()=>{});
+    const b = $('btnPlayerPlay'); if (b) b.textContent = '■';
+  } else {
+    audio.pause();
+    const b = $('btnPlayerPlay'); if (b) b.textContent = '▶';
+  }
+}
+
+function playerTogglePlayVocal() {
+  const audio = $('audioPlayerVocal');
+  if (!audio || !audio.src) return;
+  if (audio.paused) {
+    audio.play().catch(()=>{});
+    const b = $('btnPlayerPlayVocal'); if (b) b.textContent = '■';
+  } else {
+    audio.pause();
+    const b = $('btnPlayerPlayVocal'); if (b) b.textContent = '▶';
+  }
+}
+
+// ── Piano Roll mit Klaviatur ────────────────────────────────────
+function renderPianoRoll(rollData) {
+  const canvas=$('rollCanvas'); if(!canvas||!rollData?.tracks?.length) return;
+  $('rollEmpty').hidden=true; $('rollWrap').hidden=false;
+  G.pianoRollVis={};
+  rollData.tracks.forEach(t=>{G.pianoRollVis[t.name]=true;});
+
+  const tw=$('rollTrackToggles'); tw.innerHTML='';
+  rollData.tracks.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='roll-toggle-btn chip chip-active';
+    b.textContent=t.label;
+    b.style.borderColor=t.color; b.style.color=t.color; b.style.background=t.color+'22';
+    b.addEventListener('click',()=>{
+      G.pianoRollVis[t.name]=!G.pianoRollVis[t.name];
+      b.classList.toggle('inactive',!G.pianoRollVis[t.name]);
+      drawPianoRoll(rollData);
+    });
+    tw.appendChild(b);
+  });
+
+  setText('rollBpm','BPM: '+(rollData.bpm||'?'));
+  setText('rollBars','Takte: '+(rollData.total_bars||'?'));
+  drawPianoRoll(rollData);
+}
+
+function drawPianoRoll(rollData) {
+  // Pitch-Bereich ermitteln
+  let minP=127,maxP=0;
+  rollData.tracks.forEach(t=>{
+    if(!G.pianoRollVis[t.name]) return;
+    t.notes.forEach(n=>{if(n.p<minP)minP=n.p;if(n.p>maxP)maxP=n.p;});
+  });
+  if(minP>maxP){minP=36;maxP=84;}
+  const pitchRange=Math.max(maxP-minP+6,24);
+
+  const KEY_W=28, H=240, beatW=32;
+  const totalBeats=(rollData.total_bars||8)*4;
+  const W=Math.max(totalBeats*beatW,400);
+  const dpr=window.devicePixelRatio||1;
+
+  // Klaviatur zeichnen
+  const keysCanvas=$('rollKeys');
+  if(keysCanvas){
+    keysCanvas.style.width=KEY_W+'px'; keysCanvas.style.height=H+'px';
+    keysCanvas.width=KEY_W*dpr; keysCanvas.height=H*dpr;
+    const kc=keysCanvas.getContext('2d'); kc.scale(dpr,dpr);
+    kc.fillStyle='#0d0d1a'; kc.fillRect(0,0,KEY_W,H);
+    const rowH=H/pitchRange;
+    const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const BLACK=['C#','D#','F#','G#','A#'];
+    for(let p=minP;p<=maxP+pitchRange;p++){
+      const y=H-(p-minP+1)*rowH;
+      const noteName=NOTE_NAMES[p%12];
+      const isBlack=BLACK.includes(noteName);
+      kc.fillStyle=isBlack?'#0a0a14':'#1a1a28';
+      kc.fillRect(0,y,KEY_W,rowH-1);
+      if(noteName==='C'){
+        kc.fillStyle='#555'; kc.font=`${Math.min(rowH-1,9)}px monospace`;
+        kc.fillText('C'+(Math.floor(p/12)-1),1,y+rowH-2);
+      }
+    }
+  }
+
+  // Noten-Canvas zeichnen
+  const rollCanvas=$('rollCanvas');
+  if(!rollCanvas) return;
+  rollCanvas.style.width=W+'px'; rollCanvas.style.height=H+'px';
+  rollCanvas.width=W*dpr; rollCanvas.height=H*dpr;
+  const ctx=rollCanvas.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0d0d1a'; ctx.fillRect(0,0,W,H);
+  const rowH=H/pitchRange;
+
+  // Raster
+  for(let b=0;b<=totalBeats;b++){
+    ctx.strokeStyle=(b%4===0)?'#2a2a40':'#1a1a28';
+    ctx.lineWidth=1; ctx.beginPath();
+    ctx.moveTo(b*beatW,0); ctx.lineTo(b*beatW,H); ctx.stroke();
+  }
+  // Pitch-Zeilen mit Hintergrund fuer schwarze Tasten
+  const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const BLACK=['C#','D#','F#','G#','A#'];
+  for(let p=minP;p<=maxP+pitchRange;p++){
+    if(BLACK.includes(NOTE_NAMES[p%12])){
+      const y=H-(p-minP+1)*rowH;
+      ctx.fillStyle='rgba(0,0,0,.25)';
+      ctx.fillRect(0,y,W,rowH);
+    }
+  }
+
+  // Noten
+  rollData.tracks.forEach(t=>{
+    if(!G.pianoRollVis[t.name]) return;
+    ctx.fillStyle=t.color;
+    t.notes.forEach(n=>{
+      const x=n.t*beatW, w=Math.max(n.d*beatW-1,2);
+      const y=H-(n.p-minP+2)*rowH, h=Math.max(rowH-1,2);
+      ctx.globalAlpha=.4+(n.v/127)*.6;
+      ctx.fillRect(x,y,w,h);
+    });
+    ctx.globalAlpha=1;
+  });
+}
+
+// ── Production Advisor aufbauen ────────────────────────────────
+function buildAdvisor(data) {
+  $('advisorEmpty').hidden=true; $('advisorWrap').hidden=false;
+
+  const pd  = data.prompt_decoded   || {};
+  const adv = data.advisor          || {};
+  const ii  = data.instruments_info || {};
+  const meta= data.output_meta      || {};
+
+  // Palette & Prompt
+  const promptRows = [
+    ['Genre',        meta.genre   || '—'],
+    ['Tonart',       meta.key     || '—'],
+    ['BPM',          meta.bpm    != null ? meta.bpm.toFixed(1)+' BPM' : '—'],
+    ['Takte',        meta.total_bars || '—'],
+    ['PLR-Ziel',     adv.plr_target || '—'],
+    ['LRA-Ziel',     adv.lra_target || '—'],
+    ['Tonleitern',   (adv.valid_scales||[]).join(', ') || '—'],
+    ['Prompt erkannt',(pd.summary&&!pd.is_empty)?pd.summary:'—'],
+  ];
+  renderKvTable('advPromptTable', promptRows);
+
+  // Instrumente
+  const ib = $('advInstBody'); if(ib) {
+    ib.innerHTML = Object.entries(ii).map(([tname,info])=>
+      `<tr><td style="color:#7c6dea;font-family:monospace">${esc(tname)}</td><td style="color:#888">${info.gm}</td><td style="color:#aaa;font-size:.68rem">${esc(info.desc||'—')}</td></tr>`
+    ).join('');
+  }
+
+  // Gain Staging
+  const gb = $('advGainBody'); if(gb) {
+    gb.innerHTML = (adv.gain_staging||[]).map(r=>
+      `<tr>
+         <td style="color:#7c6dea;text-transform:uppercase;font-size:.68rem">${esc(r.label||r.track)}</td>
+         <td style="color:#e0a050">${r.rms!=null?r.rms+' dB':'—'}</td>
+         <td style="color:#e05050">${r.peak!=null?r.peak+' dB':'—'}</td>
+         <td style="color:#50a0e0">${r.lufs_s!=null?r.lufs_s+' LUFS':'—'}</td>
+         <td style="color:#888">${r.fader_db!=null?r.fader_db+' dB':'—'}</td>
+       </tr>`
+    ).join('');
+  }
+
+  // Effektketten
+  const fxb = $('advFxBody'); if(fxb) {
+    const chains = adv.effect_chains || {};
+    fxb.innerHTML = Object.entries(chains).map(([track, slots])=>`
+      <div class="adv-fx-track">
+        <div class="adv-fx-track-hdr">${esc(track.toUpperCase())}</div>
+        ${slots.map(s=>`
+          <div class="adv-fx-slot">
+            <span class="adv-fx-num">[${esc(s.slot)}]</span>
+            <span class="adv-fx-detail">
+              <span class="adv-fx-effect">${esc(s.effect)}</span>
+              ${s.params ? ' &mdash; '+esc(s.params) : ''}
+            </span>
+          </div>`).join('')}
+      </div>`).join('');
+  }
+
+  // Frequenzallokation
+  const frb = $('advFreqBody'); if(frb) {
+    frb.innerHTML = (adv.frequency_allocation||[]).map(r=>
+      `<tr>
+         <td style="color:#7c6dea;text-transform:uppercase;font-size:.68rem">${esc(r.label||r.track)}</td>
+         <td style="color:#888;font-family:monospace">${esc(r.hpf)}</td>
+         <td style="color:#888;font-family:monospace">${esc(r.lpf)}</td>
+         <td style="color:#aaa;font-size:.7rem">${esc(r.zone)}</td>
+       </tr>`
+    ).join('');
+  }
+
+  // BPM-Zeiten
+  const bpmT = adv.bpm_times || {};
+  renderKvTable('advBpmTable', Object.entries(bpmT));
+
+  // Export-Ziele
+  const expb = $('advExportBody'); if(expb) {
+    const specs = adv.export_specs || {};
+    expb.innerHTML = Object.entries(specs).map(([label, s])=>`
+      <div class="adv-export-spec">
+        <div class="adv-export-hdr">${esc(label.toUpperCase())}</div>
+        <div class="adv-kv-table">
+          ${Object.entries(s).filter(([k])=>k!=='notes').map(([k,v])=>`
+            <div class="adv-kv-row"><span class="adv-kv-k">${esc(k)}</span><span class="adv-kv-v">${esc(String(v))}</span></div>`
+          ).join('')}
+          ${s.notes ? `<div class="adv-kv-row" style="grid-column:1/-1"><span class="adv-kv-k" style="color:#555;font-size:.66rem">${esc(s.notes)}</span></div>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  // Groove & Mixer — mit Genre-Preset befuellen
+  buildGrooveMixer(meta.genre||'pop', adv);
+  // Paletten- und FX-Daten fuer das generierte Genre laden
+  loadPaletteData(meta.genre||'pop');
+}
+
+// ── Groove & Mix — vollstaendige Implementierung ───────────────
+
+const GROOVE_TRACKS = [
+  {key:'drums',     label:'DRUMS'},
+  {key:'percussion',label:'PERKUSSION'},
+  {key:'bass',      label:'BASS'},
+  {key:'chords',    label:'AKKORDE'},
+  {key:'lead',      label:'LEAD'},
+  {key:'pad',       label:'PAD'},
+  {key:'arp',       label:'ARP'},
+  {key:'stabs',     label:'STABS'},
+  {key:'texture',   label:'TEXTUR'},
+  {key:'fx',        label:'FX'},
+];
+
+// Welcher Track ist gerade im Param-Panel ausgewaehlt
+G.selectedGrooveTrack = null;
+
+// Instrument-Optionen aus dem linken Sidebar uebernehmen
+function _getSidebarInstrOptions(trackKey) {
+  const sel = $('instr_' + trackKey); if(!sel) return [];
+  return Array.from(sel.options).map(o=>({val:o.value, text:o.textContent}));
+}
+
+function buildGrooveMixer(genre, adv) {
+  G.soloUrls = {}; // Solo-Cache bei neuem Beat zuruecksetzen
+  // Gain-Staging-Werte als Ausgangspunkt fuer Volume nutzen
+  const gainMap = {};
+  (adv.gain_staging||[]).forEach(r=>{ gainMap[r.track] = r.fader_db ?? 0; });
+
+  G.grooveState = {};
+  GROOVE_TRACKS.forEach(({key})=>{
+    G.grooveState[key] = {
+      gain_db:      gainMap[key] ?? 0,
+      pan:          0,
+      muted:        false,
+      soloed:       false,
+      swing_pct:    50.0,
+      nudge_ms:     0.0,
+      vel_min:      1,
+      vel_max:      127,
+      curve:        'flat',
+      vel_jitter:   0,
+      time_jitter:  0.0,
+      humanize_seed:null,
+      instrument:   null,
+    };
+  });
+
+  buildGrooveSoloRows();
+  buildGrooveMixerRows();
+  buildGrooveInstrRows();
+
+  const gs = $('grooveGenreSelect'); if(gs) gs.value = genre;
+
+  // Humanize-Slider live-Update
+  bindSlider('gp_swing',     'gp_swingVal',    v=>parseFloat(v).toFixed(1)+' %');
+  bindSlider('gp_velJitter', 'gp_velJitterVal',v=>'±'+Math.round(v));
+  bindSlider('gp_timeJitter','gp_timeJitterVal',v=>'±'+Math.round(v)+' ms');
+}
+
+function buildGrooveSoloRows() {
+  const cont = $('grooveSoloRows'); if(!cont) return;
+  cont.innerHTML = GROOVE_TRACKS.map(({key, label})=>{
+    const st = G.grooveState[key]||{};
+    const db = (st.gain_db>=0?'+':'')+parseFloat(st.gain_db||0).toFixed(1);
+    return `<div class="gsolo-row" id="gsolorow_${key}" onclick="selectGrooveTrack('${key}')">
+      <button class="gsolo-play-btn" id="gsoloplay_${key}"
+              onclick="event.stopPropagation();soloPlayOrRender('${key}')">&#9654;</button>
+      <span class="gsolo-label">${label}</span>
+      <div style="display:flex;align-items:center;gap:.3rem;flex:1;">
+        <input type="range" class="vol-slider" min="-24" max="6" step="0.5" value="${st.gain_db||0}"
+               id="gsvol_${key}" onclick="event.stopPropagation()"
+               oninput="onGrooveVol('${key}',this.value)">
+        <span class="gsolo-db" id="gsdb_${key}">${db} dB</span>
+      </div>
+      <span class="gsolo-pan" id="gspan_${key}">C</span>
+      <button class="groove-btn${st.muted?' active':''}" id="gmute_${key}"
+              onclick="event.stopPropagation();toggleGrooveMute('${key}')">M</button>
+      <button class="groove-btn${st.soloed?' active':''}" id="gsolobtn_${key}"
+              onclick="event.stopPropagation();toggleGrooveSolo('${key}')">S</button>
+      <canvas class="gsolo-wave" id="gswave_${key}" width="120" height="28"></canvas>
+    </div>`;
+  }).join('');
+}
+
+function buildGrooveMixerRows() {
+  const cont = $('grooveMixerRows'); if(!cont) return;
+  cont.innerHTML = GROOVE_TRACKS.map(({key, label})=>{
+    const st = G.grooveState[key]||{gain_db:0,pan:0};
+    const db = (st.gain_db>=0?'+':'')+parseFloat(st.gain_db||0).toFixed(1);
+    return `<div class="groove-row" id="grow_${key}">
+      <span class="groove-label">${label}</span>
+      <span class="groove-db" id="gdb_${key}">${db} dB</span>
+      <input type="range" min="-24" max="6" step="0.5" value="${st.gain_db||0}"
+             class="vol-slider" id="gvol_${key}" oninput="onGrooveVol2('${key}',this.value)">
+      <span class="groove-pan-val" id="gpan_${key}">C</span>
+      <input type="range" min="-64" max="63" step="1" value="${st.pan||0}"
+             class="vol-slider" id="gpansl_${key}" oninput="onGroovePan('${key}',this.value)">
+      <button class="groove-btn${st.muted?' active':''}" id="gmute2_${key}"
+              onclick="toggleGrooveMute('${key}')">M</button>
+      <button class="groove-btn${st.soloed?' active':''}" id="gsolo2_${key}"
+              onclick="toggleGrooveSolo('${key}')">S</button>
+    </div>`;
+  }).join('');
+}
+
+function buildGrooveInstrRows() {
+  const cont = $('grooveInstrRows'); if(!cont) return;
+  cont.innerHTML = GROOVE_TRACKS.map(({key, label})=>{
+    const opts = _getSidebarInstrOptions(key);
+    const optHtml = `<option value="">auto</option>` +
+      opts.filter(o=>o.val).map(o=>`<option value="${esc(o.val)}">${esc(o.text)}</option>`).join('');
+    const palInstr = G.currentPalette?.instruments?.[key];
+    const bdraHtml = palInstr?.code
+      ? `<span class="bdra-code" title="${esc(palInstr.name||'')}">${esc(palInstr.code)}</span>`
+      : '';
+    return `<div class="groove-instr-row">
+      <span class="groove-instr-lbl">${label}</span>
+      <div style="display:flex;flex-direction:column;gap:.1rem;flex:1;">
+        <select class="gen-select gen-select-sm" id="gi_instr_${key}"
+                onchange="G.grooveState['${key}'].instrument=this.value?parseInt(this.value):null">
+          ${optHtml}
+        </select>
+        ${bdraHtml}
+      </div>
+    </div>`;
+  }).join('');
+  // Instrument-Selects auf grooveState-Werte setzen
+  GROOVE_TRACKS.forEach(({key})=>{
+    const sel=$('gi_instr_'+key);
+    if(sel&&G.grooveState[key]?.instrument!=null) sel.value=String(G.grooveState[key].instrument);
+  });
+}
+
+// Einen Track im Param-Panel auswaehlen
+function selectGrooveTrack(key) {
+  G.selectedGrooveTrack = key;
+  // Solo-Row markieren
+  document.querySelectorAll('.gsolo-row').forEach(r=>r.classList.remove('gsolo-selected'));
+  const row = $('gsolorow_'+key); if(row) row.classList.add('gsolo-selected');
+
+  // Param-Panel befoellen
+  const st = G.grooveState[key]||{};
+  $('grooveParamLabel').textContent = key.toUpperCase() + ' — Groove-Parameter';
+  const sw = $('gp_swing'); if(sw){sw.value=st.swing_pct??50; sw.dispatchEvent(new Event('input'));}
+  const nu = $('gp_nudge'); if(nu) nu.value = st.nudge_ms??0;
+  const vm = $('gp_velMin'); if(vm) vm.value = st.vel_min??1;
+  const vx = $('gp_velMax'); if(vx) vx.value = st.vel_max??127;
+  const cu = $('gp_curve'); if(cu) cu.value = st.curve??'flat';
+  const vj = $('gp_velJitter'); if(vj){vj.value=st.vel_jitter??0;vj.dispatchEvent(new Event('input'));}
+  const tj = $('gp_timeJitter'); if(tj){tj.value=st.time_jitter??0;tj.dispatchEvent(new Event('input'));}
+  const hs = $('gp_humanSeed'); if(hs) hs.value = st.humanize_seed!=null?st.humanize_seed:'';
+  $('grooveParamPanel').hidden = false;
+}
+
+// Groove-Parameter uebernehmen
+function saveGrooveParam() {
+  const key = G.selectedGrooveTrack; if(!key) return;
+  const st = G.grooveState[key];
+  st.swing_pct    = parseFloat($('gp_swing')?.value||50);
+  st.nudge_ms     = parseFloat($('gp_nudge')?.value||0);
+  st.vel_min      = parseInt($('gp_velMin')?.value||1);
+  st.vel_max      = parseInt($('gp_velMax')?.value||127);
+  st.curve        = $('gp_curve')?.value||'flat';
+  st.vel_jitter   = parseInt($('gp_velJitter')?.value||0);
+  st.time_jitter  = parseFloat($('gp_timeJitter')?.value||0);
+  const hs = $('gp_humanSeed')?.value; st.humanize_seed = hs?parseInt(hs):null;
+}
+
+function grooveRoll() {
+  const key = G.selectedGrooveTrack; if(!key) return;
+  G.grooveState[key].humanize_seed = Math.floor(Math.random()*99999);
+  const hs=$('gp_humanSeed'); if(hs)hs.value=G.grooveState[key].humanize_seed;
+}
+function grooveClear() {
+  G.grooveState[G.selectedGrooveTrack||'drums'].humanize_seed=null;
+  const hs=$('gp_humanSeed'); if(hs)hs.value='';
+}
+
+// Volume-Aenderung (Solo-Bar)
+function onGrooveVol(key, v) {
+  G.grooveState[key].gain_db = parseFloat(v);
+  const db = (parseFloat(v)>=0?'+':'')+parseFloat(v).toFixed(1)+' dB';
+  const sd=$('gsdb_'+key); if(sd)sd.textContent=db;
+  // Mixer-Row synchronisieren
+  const mv=$('gvol_'+key); if(mv)mv.value=v;
+  const md=$('gdb_'+key);  if(md)md.textContent=db;
+}
+// Volume-Aenderung (Mixer-Bar)
+function onGrooveVol2(key, v) {
+  G.grooveState[key].gain_db = parseFloat(v);
+  const db = (parseFloat(v)>=0?'+':'')+parseFloat(v).toFixed(1)+' dB';
+  const sd=$('gsdb_'+key); if(sd){$('gsvol_'+key).value=v;sd.textContent=db;}
+  const md=$('gdb_'+key);  if(md)md.textContent=db;
+}
+function onGroovePan(key, v) {
+  G.grooveState[key].pan = parseInt(v);
+  const lbl = parseInt(v)===0?'C':(parseInt(v)>0?'R'+v:'L'+Math.abs(v));
+  const sp=$('gspan_'+key); if(sp)sp.textContent=lbl;
+  const mp=$('gpan_'+key);  if(mp)mp.textContent=lbl;
+}
+function toggleGrooveMute(key) {
+  G.grooveState[key].muted=!G.grooveState[key].muted;
+  const act=G.grooveState[key].muted;
+  [$('gmute_'+key),$('gmute2_'+key)].forEach(b=>b?.classList.toggle('active',act));
+}
+function toggleGrooveSolo(key) {
+  G.grooveState[key].soloed=!G.grooveState[key].soloed;
+  const act=G.grooveState[key].soloed;
+  [$('gsolobtn_'+key),$('gsolo2_'+key)].forEach(b=>b?.classList.toggle('active',act));
+}
+
+// Solo-Play-State setzen (Button-Anzeige aktualisieren)
+function _setSoloPlayingState(trackKey) {
+  if (G.playingTrack) {
+    const old = $('gsoloplay_' + G.playingTrack);
+    if (old && old.textContent === '■') old.textContent = '▶';
+  }
+  G.playingTrack = trackKey;
+  if (trackKey) {
+    const btn = $('gsoloplay_' + trackKey);
+    if (btn) btn.textContent = '■';
+  }
+}
+
+// Play-Button: Toggle abspielen/stoppen, bei Bedarf erst rendern
+async function soloPlayOrRender(trackKey) {
+  const player = $('soloPreviewPlayer');
+  // Dieser Track gerade aktiv → stoppen
+  if (G.playingTrack === trackKey) {
+    if (player) player.pause();
+    _setSoloPlayingState(null);
+    return;
+  }
+  // Anderen Track stoppen
+  if (player && !player.paused) player.pause();
+  _setSoloPlayingState(null);
+
+  if (G.soloUrls[trackKey]) {
+    if (player) {
+      player.src = G.soloUrls[trackKey];
+      player.load();
+      player.play().catch(() => {});
+    }
+    _setSoloPlayingState(trackKey);
+    return;
+  }
+  // Noch nicht gerendert → erst rendern (kein Auto-Play danach)
+  await renderSolo(trackKey);
+}
+
+// Solo rendern und URL cachen — kein automatisches Abspielen
+async function renderSolo(trackKey) {
+  if(!G.currentUuid){alert('Zuerst einen Beat generieren.'); return;}
+  const btn=$('gsoloplay_'+trackKey);
+  if(btn){btn.classList.add('gsolo-loading');btn.classList.remove('gsolo-ready');btn.textContent='⋯';}
+  try {
+    const res=await fetch(`/render_solo/${G.currentUuid}/${encodeURIComponent(trackKey)}`);
+    const data=await res.json();
+    if(data.error){alert('Solo-Fehler: '+data.error);return;}
+    G.soloUrls[trackKey] = data.audio_url;
+    await drawMiniWaveform(trackKey, data.audio_url);
+    if(btn) btn.classList.add('gsolo-ready');
+    // KEIN Auto-Play — User klickt explizit auf ▶
+  } catch(e){alert('Netzwerkfehler: '+e.message);}
+  finally{if(btn){btn.classList.remove('gsolo-loading');btn.textContent='▶';}}
+}
+
+// Alle Solos neu rendern (Cache und Playback-State leeren)
+async function renderAllSolos() {
+  if(!G.currentUuid){alert('Zuerst einen Beat generieren.'); return;}
+  const player = $('soloPreviewPlayer');
+  if(player) player.pause();
+  _setSoloPlayingState(null);
+  G.soloUrls = {};
+  GROOVE_TRACKS.forEach(({key})=>{
+    const b=$('gsoloplay_'+key);
+    if(b){b.classList.remove('gsolo-ready');b.textContent='▶';}
+  });
+  for(const {key} of GROOVE_TRACKS) await renderSolo(key);
+}
+
+// Solos zuruecksetzen (Wellenformen loeschen, Playback stoppen)
+function resetSolos() {
+  const player = $('soloPreviewPlayer');
+  if(player) player.pause();
+  _setSoloPlayingState(null);
+  G.soloUrls = {};
+  GROOVE_TRACKS.forEach(({key})=>{
+    const b=$('gsoloplay_'+key);
+    if(b){b.classList.remove('gsolo-ready');b.textContent='▶';}
+    const c=$('gswave_'+key); if(!c) return;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#0d0d1a'; ctx.fillRect(0,0,c.width,c.height);
+  });
+}
+
+// Mini-Wellenform zeichnen + Klick-Handler fuer Seek
+async function drawMiniWaveform(trackKey, url) {
+  const canvas=$('gswave_'+trackKey); if(!canvas) return;
+  try {
+    if(!G.audioCtx) G.audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const buf=await(await fetch(url)).arrayBuffer();
+    const ab=await G.audioCtx.decodeAudioData(buf);
+    const W=canvas.width, H=canvas.height;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#0d0d1a'; ctx.fillRect(0,0,W,H);
+    const d=ab.getChannelData(0);
+    const samp=Math.ceil(d.length/W); const mid=H/2; const amp=mid*.9;
+    ctx.strokeStyle='#50e080'; ctx.lineWidth=1; ctx.beginPath();
+    for(let x=0;x<W;x++){
+      let mn=1,mx=-1;
+      const s=x*samp, e=Math.min(s+samp,d.length);
+      for(let i=s;i<e;i++){if(d[i]<mn)mn=d[i];if(d[i]>mx)mx=d[i];}
+      if(x===0)ctx.moveTo(x,mid+mn*amp);
+      ctx.lineTo(x,mid+mn*amp);ctx.lineTo(x,mid+mx*amp);
+    }
+    ctx.stroke();
+    // Klick-Handler fuer Seek (Position anklicken → springe dorthin)
+    canvas.style.cursor='pointer';
+    canvas.onclick = (e) => {
+      const rect=canvas.getBoundingClientRect();
+      const frac=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+      const player=$('soloPreviewPlayer'); if(!player) return;
+      if(G.playingTrack===trackKey && player.duration) {
+        player.currentTime=frac*player.duration;
+      } else if(G.soloUrls[trackKey]) {
+        // Track laden, zur Position springen und abspielen
+        if(G.playingTrack!==trackKey) { if(!player.paused) player.pause(); _setSoloPlayingState(null); }
+        player.src=G.soloUrls[trackKey];
+        player.load();
+        player.addEventListener('loadedmetadata',()=>{
+          player.currentTime=frac*player.duration;
+          player.play().catch(()=>{});
+          _setSoloPlayingState(trackKey);
+        },{once:true});
+      }
+    };
+  } catch(e){console.warn('Mini-Wellenform Fehler:',e);}
+}
+
+// Groove & Re-Render
+async function applyGrooveAndRerender() {
+  if(!G.currentUuid){alert('Zuerst einen Beat generieren.'); return;}
+  const btn=$('btnApplyGroove'); if(btn){btn.disabled=true;btn.textContent='Wird gerendert…';}
+  // Param-Panel speichern, bevor gesendet wird
+  if(G.selectedGrooveTrack) saveGrooveParam();
+
+  // track_params aus grooveState aufbauen
+  const track_params={};
+  const hSeed=$('gp_humanSeed')?.value;
+  GROOVE_TRACKS.forEach(({key})=>{
+    const st=G.grooveState[key]||{};
+    const gi=$('gi_instr_'+key);
+    track_params[key]={
+      volume_db:    st.gain_db??0,
+      mute:         st.muted??false,
+      instrument:   gi?.value?parseInt(gi.value):null,
+      swing_pct:    st.swing_pct??50,
+      nudge_ms:     st.nudge_ms??0,
+      vel_min:      st.vel_min??1,
+      vel_max:      st.vel_max??127,
+      vel_jitter:   st.vel_jitter??0,
+      time_jitter:  st.time_jitter??0,
+      humanize_seed:st.humanize_seed??null,
+    };
+  });
+  try {
+    const res=await fetch('/rerender',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+      uuid:        G.currentUuid,
+      track_params,
+      sf2_key:     $('sf2PresetSelect')?.value || null,
+      sf2_uuid:    G.sf2Uuid || null,
+    }),
+    });
+    const data=await res.json();
+    if(data.error){alert('Re-Render-Fehler: '+data.error);return;}
+    // Re-Render-Audio anzeigen
+    const ap=$('grooveAudioPlayer'); if(ap){ap.src=data.audio_url;ap.load();}
+    const dl=$('grooveDownloadLink'); if(dl)dl.href=data.audio_url;
+    const wr=$('grooveRerenderedWrap'); if(wr)wr.hidden=false;
+    G.rerenderUuid=data.uuid;
+  } catch(e){alert('Netzwerkfehler: '+e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent='▶ GROOVE ANWENDEN & NEU RENDERN';}}
+}
+
+function useRerenderedAsMain() {
+  if(!G.rerenderUuid) return;
+  // Neu gerendertes Audio im Waveform-Spieler des Vorschau-Tabs laden
+  WellenformSpieler.load('audioPlayer', 'playerWaveCanvas', `/temp_audio/${G.rerenderUuid}`);
+  G.currentUuid=G.rerenderUuid;
+}
+
+async function loadGroovePreset() {
+  const genre=$('grooveGenreSelect')?.value||'pop';
+  try {
+    const res=await fetch('/groove_preset/'+genre);
+    const data=await res.json();
+    GROOVE_TRACKS.forEach(({key})=>{
+      const ps=data[key]; if(!ps) return;
+      G.grooveState[key].gain_db  = ps.gain_db??0;
+      G.grooveState[key].pan      = ps.pan??0;
+      G.grooveState[key].swing_pct= ps.swing_pct!=null?ps.swing_pct:50;
+      G.grooveState[key].nudge_ms = ps.timing_nudge_ms??0;
+      G.grooveState[key].vel_min  = ps.vel_min??1;
+      G.grooveState[key].vel_max  = ps.vel_max??127;
+      onGrooveVol(key, ps.gain_db??0);
+      const sv=$('gsvol_'+key); if(sv)sv.value=ps.gain_db??0;
+      const mv=$('gvol_'+key);  if(mv)mv.value=ps.gain_db??0;
+      onGroovePan(key, ps.pan??0);
+      const mp=$('gpansl_'+key); if(mp)mp.value=ps.pan??0;
+    });
+  } catch(e){console.warn('Groove-Preset Ladefehler:',e);}
+}
+
+function resetGrooveMixer() {
+  GROOVE_TRACKS.forEach(({key})=>{
+    G.grooveState[key]={gain_db:0,pan:0,muted:false,soloed:false,
+      swing_pct:50,nudge_ms:0,vel_min:1,vel_max:127,curve:'flat',
+      vel_jitter:0,time_jitter:0,humanize_seed:null,instrument:null};
+    onGrooveVol(key,0);
+    const sv=$('gsvol_'+key); if(sv)sv.value=0;
+    const mv=$('gvol_'+key);  if(mv)mv.value=0;
+    onGroovePan(key,0);
+    const mp=$('gpansl_'+key); if(mp)mp.value=0;
+    [$('gmute_'+key),$('gmute2_'+key)].forEach(b=>b?.classList.remove('active'));
+    [$('gsolobtn_'+key),$('gsolo2_'+key)].forEach(b=>b?.classList.remove('active'));
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Soundfont-Auswahl
+// ══════════════════════════════════════════════════════════════════
+
+async function loadAvailableSoundfonts() {
+  try {
+    const res  = await fetch('/available_soundfonts');
+    const data = await res.json();
+    const sel  = $('sf2PresetSelect'); if(!sel) return;
+    const fonts = data.fonts || [];
+    const fsNote = data.fluidsynth_available ? '' : ' (FluidSynth nicht gefunden)';
+    // Standardoption: leerer Wert = Genre-Standard-SF2 (wie MA V7), kein Builtin.
+    const _defaultOpt = `<option value="">— Genre-Standard (SF2) —</option>`;
+    const _fontOpts   = fonts.map(f=>`<option value="${esc(f.key)}">${esc(f.label)}${fsNote}</option>`).join('');
+    sel.innerHTML = _defaultOpt + _fontOpts;
+    // Sidebar-Selector ebenfalls befuellen.
+    const genSel = $('genSf2Select');
+    if(genSel) genSel.innerHTML = _defaultOpt + _fontOpts;
+  } catch(e){ console.warn('Soundfont-Ladefehler:', e); }
+}
+
+async function uploadSf2File(input) {
+  const file = input.files?.[0]; if(!file) return;
+  const prog = $('sf2UploadProgress'); if(prog) prog.hidden = false;
+  const fd   = new FormData(); fd.append('sf2', file);
+  try {
+    const res  = await fetch('/upload_soundfont', {method:'POST', body:fd});
+    const data = await res.json();
+    if(data.sf2_uuid) {
+      G.sf2Uuid = data.sf2_uuid; G.sf2Key = null;
+      const fn=$('sf2FileName'); if(fn) fn.textContent=data.name;
+      const sel=$('sf2PresetSelect'); if(sel) sel.value='';
+    } else { alert(data.error||'Upload fehlgeschlagen.'); }
+  } catch(e){ alert('Upload-Fehler: '+e.message); }
+  finally{ if(prog) prog.hidden=true; }
+}
+
+function openExportModalForRerender() {
+  if(!G.rerenderUuid){ alert('Zuerst neu rendern.'); return; }
+  openExportModal();
+  setTimeout(()=>setExportSrc('rerender'), 80);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Palette & Theorie-Pruefer
+// ══════════════════════════════════════════════════════════════════
+
+async function loadPaletteData(genre) {
+  try {
+    const res  = await fetch('/palette_data/' + encodeURIComponent(genre));
+    const data = await res.json();
+    G.paletteData = data;
+    const sel = $('paletteSelect'); if(!sel) return;
+    const palettes = data.palettes || [];
+    sel.innerHTML = palettes.length
+      ? `<option value="">— Palette waehlen —</option>` +
+        palettes.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}${p.branch?' ('+esc(p.branch)+')':''}</option>`).join('')
+      : `<option value="">Keine Paletten fuer dieses Genre</option>`;
+    updateFxVariantButtons(data.fx_variants || []);
+    setPaletteVariant(G.currentFxVariant || 'neutral');
+  } catch(e) { console.warn('Paletten-Ladefehler:', e); }
+}
+
+function updateFxVariantButtons(variants) {
+  const idMap = {bright:'pfxbtn_bright', neutral:'pfxbtn_neutral', dark:'pfxbtn_dark'};
+  variants.forEach(v => {
+    const btn=$(idMap[v.id]); if(!btn) return;
+    btn.title = v.description||'';
+    btn.textContent = v.label||v.id;
+  });
+}
+
+function onPaletteChange(paletteId) {
+  if (!paletteId || !G.paletteData) {
+    G.currentPalette=null;
+    const d=$('paletteDesc'); if(d) d.textContent='';
+    buildGrooveInstrRows(); return;
+  }
+  const palette=(G.paletteData.palettes||[]).find(p=>p.id===paletteId);
+  if (!palette) return;
+  G.currentPalette=palette;
+  const d=$('paletteDesc');
+  if(d) d.textContent=palette.kick_desc?'Kick: '+palette.kick_desc:'';
+  Object.entries(palette.instruments||{}).forEach(([tk,instr])=>{
+    if(G.grooveState[tk]) G.grooveState[tk].instrument=instr.gm??null;
+  });
+  buildGrooveInstrRows();
+}
+
+function setPaletteVariant(variantId) {
+  G.currentFxVariant=variantId;
+  ['bright','neutral','dark'].forEach(v=>{
+    const btn=$('pfxbtn_'+v); if(btn) btn.classList.toggle('palette-fx-active',v===variantId);
+  });
+  const d=$('paletteVariantDesc');
+  if(d&&G.paletteData?.fx_variants){
+    const variant=(G.paletteData.fx_variants).find(v=>v.id===variantId);
+    d.textContent=variant?.description||'';
+  }
+}
+
+async function checkTheory() {
+  if(!G.lastData){alert('Zuerst einen Beat generieren.'); return;}
+  const meta  = G.lastData.output_meta||{};
+  const genre = meta.genre||'pop';
+  const bpm   = meta.bpm||120;
+  const keyParts=(meta.key||'').split(' ');
+  const scale=keyParts.length>=2?keyParts.slice(1).join('_'):'minor';
+  const instruments={};
+  if(G.currentPalette?.instruments){
+    Object.entries(G.currentPalette.instruments).forEach(([k,v])=>{
+      instruments[k]={code:v.code||''};
+    });
+  }
+  try {
+    const res=await fetch('/theory_score',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({genre,bpm,scale,instruments}),
+    });
+    const result=await res.json();
+    renderTheoryResult(result);
+  } catch(e){ console.warn('Theorie-Pruefung Fehler:',e); }
+}
+
+function renderTheoryResult(result) {
+  const score=result.score??0;
+  const grade=result.grade??'—';
+  const checks=result.checks??{};
+  const bar=$('theoryScoreBar');
+  if(bar) bar.style.width=score+'%';
+  setText('theoryScoreVal',score+'/100');
+  setText('theoryGrade',grade);
+  const ge=$('theoryGrade');
+  if(ge) ge.style.color=score>=90?'#50e0a0':score>=70?'#9d8df0':score>=50?'#e0a050':'#e05050';
+  ['p1','p2','p3','p4','p5'].forEach(p=>{
+    const c=checks[p]||{};
+    const dot=$('tcdot_'+p),det=$('tcd_'+p);
+    if(dot){
+      if(c.pass){dot.style.color='#50e0a0';dot.textContent='●';}
+      else if(c.partial){dot.style.color='#e0a050';dot.textContent='◐';}
+      else{dot.style.color='#e05050';dot.textContent='○';}
+    }
+    if(det) det.textContent=c.detail||'';
+  });
+  const fb=$('theoryFeedback');
+  if(fb){fb.textContent=result.feedback||'';fb.hidden=!result.feedback;}
+}
+
+// ── Speichern ──────────────────────────────────────────────────
+async function saveTrack() {
+  if(!G.currentUuid) return;
+  const name=($('trackName')?.value||'').trim()||'Untitled';
+  try {
+    const res =await fetch('/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uuid:G.currentUuid,name})});
+    const data=await res.json();
+    const el=$('saveResult');
+    if(data.success){
+      el.textContent='Gespeichert! Noch heute: '+data.quota_remaining+' verbleibend.';
+      el.className='save-result ok';
+      setText('quotaDaily',data.quota_remaining);
+      const qm=$('quotaMonthly'); if(qm&&data.monthly_remaining!=null)qm.textContent=data.monthly_remaining;
+    } else {
+      el.textContent=data.message||data.error||'Fehler beim Speichern.';
+      el.className='save-result err';
+    }
+  } catch(e){const el=$('saveResult');if(el){el.textContent='Netzwerkfehler: '+e.message;el.className='save-result err';}}
+}
+
+// ── Hilfsfunktionen ────────────────────────────────────────────
+function setGenerating(a) {
+  const b=$('btnGenerate'), sp=$('genSpinner');
+  // innerHTML verwenden, damit HTML-Entities korrekt gerendert werden
+  if(b){ b.disabled=a; b.innerHTML=a?'&#8230;':'&#9654; Beat generieren'; }
+  // style.display direkt setzen, damit kein CSS-display-Konflikt mit hidden entsteht
+  if(sp) sp.style.display = a ? 'flex' : 'none';
+}
+function showError(m){
+  const e=$('genError'); if(!e) return;
+  // innerHTML damit das Warnsymbol (&#9888;) korrekt angezeigt wird
+  e.innerHTML='&#9888; '+esc(m);
+  e.style.display='block';
+}
+function hideError(){const e=$('genError');if(e)e.style.display='none';}
+function setText(id,v){const e=$(id);if(e)e.textContent=v;}
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function renderKvTable(id, rows) {
+  const el=$(id); if(!el) return;
+  el.innerHTML=rows.map(([k,v])=>`<div class="adv-kv-row"><span class="adv-kv-k">${esc(k)}</span><span class="adv-kv-v">${esc(String(v))}</span></div>`).join('');
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('tab-active',b.dataset.tab===tabId));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('tab-active',p.id==='tab-'+tabId));
+  if(tabId==='pianoroll'&&G.pianoRollData) drawPianoRoll(G.pianoRollData);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+
+  initChipGroup('fxVariant');
+  initChipGroup('genMode');
+  initChipGroup('fusionMode');
+
+  bindSlider('complexity','complexityVal',v=>Math.round(v));
+  bindSlider('humanize','humanizeVal',v=>parseFloat(v).toFixed(2));
+  bindSlider('mutation','mutationVal',v=>parseFloat(v).toFixed(2));
+  bindSlider('tension','tensionVal',v=>parseFloat(v).toFixed(2));
+  bindSlider('fusionRatio','fusionRatioVal',v=>{const a=Math.round(parseFloat(v)*100);return a+' / '+(100-a);});
+
+  ['drums','percussion','bass','chords','lead','pad','arp','stabs','texture','fx'].forEach(t=>{
+    const sl=$('vol_'+t),vl=$('vol_'+t+'_val');
+    if(sl&&vl) sl.addEventListener('input',()=>{vl.textContent=Math.round(sl.value*100)+'%';});
+  });
+
+  $('btnGenerate')?.addEventListener('click', generateBeat);
+  $('btnDecode')?.addEventListener('click', decodePrompt);
+  $('btnLoadGroove')?.addEventListener('click', loadGroovePreset);
+  $('btnResetGroove')?.addEventListener('click', resetGrooveMixer);
+  $('btnRenderAllSolos')?.addEventListener('click', renderAllSolos);
+  $('btnResetSolos')?.addEventListener('click', resetSolos);
+  $('btnApplyGroove')?.addEventListener('click', applyGrooveAndRerender);
+
+  $('btnWaveZoomIn')?.addEventListener('click',()=>{G.waveZoom=Math.min(G.waveZoom*1.5,8);const a=$('audioPlayer');if(a?.src)renderWaveform(a.src);});
+  $('btnWaveZoomOut')?.addEventListener('click',()=>{G.waveZoom=Math.max(G.waveZoom/1.5,0.25);const a=$('audioPlayer');if(a?.src)renderWaveform(a.src);});
+  $('btnWaveReset')?.addEventListener('click',()=>{G.waveZoom=1.0;const a=$('audioPlayer');if(a?.src)renderWaveform(a.src);});
+
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+  const fs=$('fusionPreset');
+  if(fs) fs.addEventListener('change',()=>{
+    const opt=fs.options[fs.selectedIndex];
+    const d=$('fusionPresetDesc'); if(d)d.textContent=opt?.title||'';
+  });
+
+  onFusionModeChange(chipVal('fusionMode'));
+
+  $('btnOpenExport')?.addEventListener('click', openExportModal);
+
+  // Solo-Player: Track-Ende zuruecksetzen
+  const _sp = $('soloPreviewPlayer');
+  if(_sp) _sp.addEventListener('ended', ()=>_setSoloPlayingState(null));
+
+  // Waveform-Vorschau-Spieler: Fortschritts-Updates und Track-Ende
+  const _ap = $('audioPlayer');
+  if (_ap) {
+    _ap.addEventListener('timeupdate', ()=>WellenformSpieler.update('audioPlayer','playerWaveCanvas','playerTimeDisplay'));
+    _ap.addEventListener('ended', ()=>WellenformSpieler.resetBtn('btnPlayerPlay'));
+  }
+  const _apv = $('audioPlayerVocal');
+  if (_apv) {
+    _apv.addEventListener('timeupdate', ()=>WellenformSpieler.update('audioPlayerVocal','playerWaveCanvasVocal','playerTimeDisplayVocal'));
+    _apv.addEventListener('ended', ()=>WellenformSpieler.resetBtn('btnPlayerPlayVocal'));
+  }
+
+  // Waveform-Canvas: Klick zum Anspringen einer Position (Seek)
+  const _pwc = $('playerWaveCanvas');
+  if (_pwc) {
+    _pwc.addEventListener('click', (e) => {
+      const rect = _pwc.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const audio = $('audioPlayer');
+      if (audio && audio.duration) {
+        audio.currentTime = frac * audio.duration;
+        if (audio.paused) { audio.play().catch(()=>{}); const b=$('btnPlayerPlay'); if(b)b.textContent='■'; }
+      }
+    });
+  }
+  const _pwcv = $('playerWaveCanvasVocal');
+  if (_pwcv) {
+    _pwcv.addEventListener('click', (e) => {
+      const rect = _pwcv.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const audio = $('audioPlayerVocal');
+      if (audio && audio.duration) {
+        audio.currentTime = frac * audio.duration;
+        if (audio.paused) { audio.play().catch(()=>{}); const b=$('btnPlayerPlayVocal'); if(b)b.textContent='■'; }
+      }
+    });
+  }
+
+  // Verfuegbare Soundfonts laden
+  loadAvailableSoundfonts();
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Export-Modal
+// ══════════════════════════════════════════════════════════════════
+
+// Export-Zustand
+const EX = {
+  format: 'wav_cd',
+  source: 'main',   // 'main' | 'rerender' | 'vocal'
+  formats: {},      // wird von /export_formats geladen
+  ffmpeg: false,
+};
+
+async function openExportModal() {
+  if (!G.currentUuid) { alert('Zuerst einen Beat generieren.'); return; }
+
+  // Formate und ffmpeg-Status laden (einmalig)
+  if (!Object.keys(EX.formats).length) {
+    try {
+      const r = await fetch('/export_formats');
+      const d = await r.json();
+      EX.formats = d.formats || {};
+      EX.ffmpeg  = d.ffmpeg_available || false;
+    } catch(_) {}
+  }
+
+  buildExportFormatGrid();
+  updateExportSrcButtons();
+
+  const m = $('exportModal'); if(m) m.hidden = false;
+}
+
+function closeExportModal() {
+  const m = $('exportModal'); if(m) m.hidden = true;
+}
+
+// Klick ausserhalb des Modals schliessen
+document.addEventListener('click', e => {
+  const overlay = $('exportModal');
+  if (!overlay || overlay.hidden) return;
+  if (e.target === overlay) closeExportModal();
+});
+
+// Escape-Taste schliessen
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeExportModal();
+});
+
+function buildExportFormatGrid() {
+  const grid = $('exportFormatGrid'); if (!grid) return;
+  const needsffmpeg = Object.values(EX.formats).some(f => f.ffmpeg);
+  const hint = $('exportFfmpegHint');
+  if (hint) hint.hidden = !needsffmpeg;
+
+  grid.innerHTML = Object.entries(EX.formats).map(([key, fmt]) => {
+    const badge = (fmt.ffmpeg && !EX.ffmpeg) ? ' <span class="export-fmt-badge">*ffmpeg</span>' : '';
+    const active = key === EX.format ? ' export-fmt-active' : '';
+    return `<button class="export-fmt-btn${active}" data-fkey="${esc(key)}"
+              onclick="setExportFormat('${esc(key)}')">${esc(fmt.label)}${badge}</button>`;
+  }).join('');
+}
+
+function setExportFormat(key) {
+  EX.format = key;
+  document.querySelectorAll('.export-fmt-btn').forEach(b => {
+    b.classList.toggle('export-fmt-active', b.dataset.fkey === key);
+  });
+}
+
+function setExportSrc(v) {
+  EX.source = v;
+  document.querySelectorAll('.export-src-btn').forEach(b => {
+    b.classList.toggle('chip-active', b.dataset.v === v);
+  });
+}
+
+function updateExportSrcButtons() {
+  const rr = $('exportSrcRerender');
+  const vc = $('exportSrcVocal');
+  if (rr) rr.disabled = !G.rerenderUuid;
+  if (vc) vc.disabled = !G.vocalUuid;
+  // Quelle auf 'rerender' vorwaehlen wenn vorhanden
+  if (G.rerenderUuid) setExportSrc('rerender');
+  else setExportSrc('main');
+}
+
+function _exportUuid() {
+  if (EX.source === 'rerender' && G.rerenderUuid) return G.rerenderUuid;
+  if (EX.source === 'vocal'    && G.vocalUuid)    return G.vocalUuid;
+  return G.currentUuid;
+}
+
+function _exportOrigUuid() {
+  // MIDI/JSON immer vom Original (dort liegt composition.json)
+  return G.currentUuid;
+}
+
+function _downloadUrl(url) {
+  const a = document.createElement('a');
+  a.href = url; a.download = '';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+}
+
+async function doExportAudio() {
+  const uuid = _exportUuid();
+  if (!uuid) { alert('Kein Beat vorhanden.'); return; }
+  const fmt  = EX.formats[EX.format] || {};
+  const needsFfmpeg = fmt.ffmpeg && !EX.ffmpeg;
+
+  const errEl = $('exportAudioErr');
+  if (errEl) errEl.hidden = true;
+
+  if (needsFfmpeg) {
+    if (errEl) { errEl.textContent = '⚠ ffmpeg nicht gefunden. Bitte ffmpeg installieren oder WAV CD Quality waehlen.'; errEl.hidden = false; }
+    return;
+  }
+
+  const btn = $('btnExportAudio');
+  if (btn) { btn.disabled = true; btn.textContent = 'Wird konvertiert…'; }
+  try {
+    const url = `/export_audio/${uuid}?format=${encodeURIComponent(EX.format)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      // Lesbare Fehlermeldung anzeigen (message bevorzugt vor error-Code)
+      if (errEl) { errEl.textContent = '⚠ ' + (d.message || d.error || 'Fehler beim Exportieren.'); errEl.hidden = false; }
+      if (d.error === 'quota_exceeded') refreshQuota(); // Kontingent-Anzeige aktualisieren
+      return;
+    }
+    // Datei-Download: Blob aus Response holen
+    const blob = await res.blob();
+    const ext  = (fmt.ext || 'wav');
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = `beat_${EX.format}.${ext}`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(objUrl), 5000);
+    // Kontingent-Anzeige nach erfolgreichem Export aktualisieren
+    refreshQuota();
+  } catch(e) {
+    if (errEl) { errEl.textContent = '⚠ Netzwerkfehler: ' + e.message; errEl.hidden = false; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ AUDIO HERUNTERLADEN'; }
+  }
+}
+
+// Kontingent-Anzeige aus dem Server neu laden
+async function refreshQuota() {
+  try {
+    const res = await fetch('/quota');
+    const d = await res.json();
+    const qd = $('quotaDaily');   if (qd) qd.textContent = d.daily_remaining   ?? '?';
+    const qm = $('quotaMonthly'); if (qm) qm.textContent = d.monthly_remaining ?? '?';
+  } catch(e) { /* Stilles Scheitern — Anzeige bleibt unveraendert */ }
+}
+
+async function doExportMIDI() {
+  const uuid = _exportOrigUuid();
+  if (!uuid) { alert('Kein Beat vorhanden.'); return; }
+  const errEl = $('exportOtherErr');
+  try {
+    const res = await fetch(`/export_midi/${uuid}`);
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      if(errEl){errEl.textContent='⚠ '+(d.error||'MIDI-Export fehlgeschlagen.');errEl.hidden=false;}
+      return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download='composition.mid';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    if(errEl) errEl.hidden=true;
+  } catch(e){ if(errEl){errEl.textContent='⚠ '+e.message;errEl.hidden=false;} }
+}
+
+async function doExportJSON() {
+  const uuid = _exportOrigUuid();
+  if (!uuid) { alert('Kein Beat vorhanden.'); return; }
+  const errEl = $('exportOtherErr');
+  try {
+    const res = await fetch(`/export_json/${uuid}`);
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      if(errEl){errEl.textContent='⚠ '+(d.error||'JSON-Export fehlgeschlagen.');errEl.hidden=false;}
+      return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download='composition.json';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    if(errEl) errEl.hidden=true;
+  } catch(e){ if(errEl){errEl.textContent='⚠ '+e.message;errEl.hidden=false;} }
+}
+
+async function doExportPDF() {
+  const uuid = _exportOrigUuid();
+  if (!uuid) { alert('Kein Beat vorhanden.'); return; }
+  const errEl = $('exportOtherErr');
+  try {
+    const res = await fetch(`/export_advisory_pdf/${uuid}`);
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      if(errEl){errEl.textContent='⚠ '+(d.error||d.message||'PDF-Export fehlgeschlagen.');errEl.hidden=false;}
+      return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download='production_advisor.pdf';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    if(errEl) errEl.hidden=true;
+  } catch(e){ if(errEl){errEl.textContent='⚠ '+e.message;errEl.hidden=false;} }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anmelden — SBS Catalog</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f13;
+      color: #e2e2e2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #1a1a22;
+      border: 1px solid #2e2e3e;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .brand { text-align: center; margin-bottom: 2rem; }
+    .brand-mark { font-size: 2rem; color: #7c6dea; }
+    .brand-name { display: block; font-size: 1.1rem; font-weight: 700;
+                  letter-spacing: .1em; color: #ccc; margin-top: .3rem; }
+    h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 1.5rem;
+         text-align: center; color: #f0f0f0; }
+    label { display: block; font-size: .8rem; color: #999;
+            margin-bottom: .3rem; margin-top: 1rem; }
+    input {
+      width: 100%; padding: .6rem .8rem;
+      background: #13131a; border: 1px solid #2e2e3e; border-radius: 6px;
+      color: #e2e2e2; font-size: .95rem;
+    }
+    input:focus { outline: none; border-color: #7c6dea; }
+    .btn {
+      display: block; width: 100%; margin-top: 1.6rem;
+      padding: .75rem; background: #7c6dea; color: #fff;
+      border: none; border-radius: 8px; font-size: 1rem;
+      font-weight: 600; cursor: pointer; transition: background .15s;
+    }
+    .btn:hover { background: #6a5cd4; }
+    .flash { margin-top: 1rem; padding: .6rem .8rem; border-radius: 6px;
+             font-size: .85rem; }
+    .flash-error   { background: #3a1a1a; color: #f87171; border: 1px solid #6b2020; }
+    .flash-success { background: #1a3a1a; color: #4ade80; border: 1px solid #206b20; }
+    .link-row { text-align: center; margin-top: 1.2rem; font-size: .85rem; color: #888; }
+    .link-row a { color: #7c6dea; text-decoration: none; }
+    .link-row a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <span class="brand-name">SBS CATALOG</span>
+    </div>
+    <h1>Anmelden</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post" action="{{ url_for('auth.login') }}">
+      <label for="email">E-Mail</label>
+      <input type="email" id="email" name="email" required autocomplete="email">
+
+      <label for="password">Passwort</label>
+      <input type="password" id="password" name="password" required
+             autocomplete="current-password">
+
+      <button type="submit" class="btn">Anmelden</button>
+    </form>
+
+    <p class="link-row">
+      Kein Konto? <a href="{{ url_for('auth.register') }}">Registrieren</a>
+    </p>
+  </div>
+</body>
+</html>

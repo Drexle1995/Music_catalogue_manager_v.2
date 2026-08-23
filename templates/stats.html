@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Meine Statistik — SBS Catalog{% endblock %}
+
+{% block content %}
+<style>
+  /* Seitenlayout */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Einzelne Kennzahl-Karte */
+  .stat-card {
+    background: var(--card, #1a1a22);
+    border: 1px solid var(--border, #2e2e3e);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+  }
+  .stat-card .label  { font-size: .78rem; color: #888; margin-bottom: .4rem; }
+  .stat-card .value  { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+  .stat-card .sub    { font-size: .78rem; color: #666; margin-top: .3rem; }
+  .stat-card.accent-blue  .value { color: #60a5fa; }
+  .stat-card.accent-green .value { color: #4ade80; }
+  .stat-card.accent-purple .value { color: #c084fc; }
+
+  /* Abschnittstitel */
+  .section-title {
+    font-size: .82rem; font-weight: 600; letter-spacing: .08em;
+    color: #666; text-transform: uppercase; margin: 1.5rem 0 .7rem;
+  }
+
+  /* Chart-Bereich */
+  .chart-panel {
+    background: #1a1a22;
+    border: 1px solid #2e2e3e;
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 1.5rem;
+  }
+  .chart-panel h3 { font-size: .9rem; color: #ccc; margin-bottom: 1rem; }
+
+  /* Inline-Balkendiagramm ohne externe Bibliothek */
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 90px; }
+  .bar-col   { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 4px; }
+  .bar       { width: 100%; background: #7c6dea; border-radius: 3px 3px 0 0;
+               transition: height .3s; min-height: 2px; }
+  .bar-lbl   { font-size: .65rem; color: #555; }
+  .bar-val   { font-size: .7rem; color: #aaa; }
+
+  /* Genre-Donut (CSS-only, max. 6 Eintraege) */
+  .genre-list { list-style: none; padding: 0; margin: 0; }
+  .genre-list li {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .35rem 0; border-bottom: 1px solid #1e1e28; font-size: .85rem;
+  }
+  .genre-list li:last-child { border-bottom: none; }
+  .genre-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .genre-bar-wrap { flex: 1; background: #13131a; border-radius: 3px; height: 6px; }
+  .genre-bar-fill { height: 100%; border-radius: 3px; background: #7c6dea; }
+  .genre-cnt  { color: #aaa; font-size: .78rem; min-width: 24px; text-align: right; }
+
+  /* Nutzer-Info-Leiste */
+  .user-bar {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: .8rem 1.2rem; background: #1a1a22; border: 1px solid #2e2e3e;
+    border-radius: 10px; margin-bottom: 1.5rem; font-size: .85rem; color: #aaa;
+  }
+  .badge {
+    display: inline-block; padding: .2rem .7rem; border-radius: 99px;
+    font-size: .75rem; font-weight: 700; text-transform: uppercase;
+  }
+  .badge.free { background: #1e1e2e; color: #7c6dea; border: 1px solid #3a3060; }
+  .badge.pro  { background: #1a3a1a; color: #4ade80; border: 1px solid #1a6b20; }
+
+  /* Aktualisierungs-Knopf */
+  .btn-refresh {
+    margin-left: auto; padding: .3rem .9rem; font-size: .78rem;
+    background: #1e1e2e; color: #7c6dea; border: 1px solid #3a3060;
+    border-radius: 6px; cursor: pointer; transition: background .15s;
+  }
+  .btn-refresh:hover { background: #2a2a3e; }
+</style>
+
+<!-- Nutzerinformation -->
+<div class="user-bar">
+  <span>{{ email }}</span>
+  <span class="badge {{ tier }}">{{ tier }}</span>
+  <button class="btn-refresh" onclick="refreshStats()">&#8635; Aktualisieren</button>
+</div>
+
+<!-- Abschnitt: Gespeicherte Beats -->
+<p class="section-title">Gespeicherte Beats</p>
+<div class="stats-grid" id="saves-grid">
+  <div class="stat-card accent-blue">
+    <div class="label">Heute</div>
+    <div class="value" id="saves-today">{{ s.saves_today }}</div>
+    <div class="sub">{{ s.today }}</div>
+  </div>
+  <div class="stat-card accent-green">
+    <div class="label">Diese Woche</div>
+    <div class="value" id="saves-week">{{ s.saves_week }}</div>
+    <div class="sub">ab {{ s.week_start }}</div>
+  </div>
+  <div class="stat-card accent-purple">
+    <div class="label">Diesen Monat</div>
+    <div class="value" id="saves-month">{{ s.saves_month }}</div>
+    <div class="sub">ab {{ s.month_start }}</div>
+  </div>
+</div>
+
+<!-- Abschnitt: Generierungen (ohne Speichern) -->
+<p class="section-title">Generierungen gesamt (inkl. nicht gespeichert)</p>
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Heute</div>
+    <div class="value" style="color:#94a3b8;" id="gen-today">{{ s.gen_today }}</div>
+    <div class="sub">{{ s.today }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Diese Woche</div>
+    <div class="value" style="color:#94a3b8;" id="gen-week">{{ s.gen_week }}</div>
+    <div class="sub">ab {{ s.week_start }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Diesen Monat</div>
+    <div class="value" style="color:#94a3b8;" id="gen-month">{{ s.gen_month }}</div>
+    <div class="sub">ab {{ s.month_start }}</div>
+  </div>
+</div>
+
+<!-- Letzte 7 Tage Balkendiagramm -->
+<div class="chart-panel">
+  <h3>Gespeicherte Beats — letzte 7 Tage</h3>
+  <div class="bar-chart" id="bar-chart">
+    {% set max_val = s.chart_data | max if s.chart_data else 1 %}
+    {% for i in range(s.chart_labels | length) %}
+      {% set h = ((s.chart_data[i] / (max_val if max_val > 0 else 1)) * 76) | int %}
+      <div class="bar-col">
+        <div class="bar-val">{{ s.chart_data[i] }}</div>
+        <div class="bar" style="height: {{ [h, 2] | max }}px;"
+             title="{{ s.chart_labels[i] }}: {{ s.chart_data[i] }} Saves"></div>
+        <div class="bar-lbl">{{ s.chart_labels[i][5:] }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Genre-Verteilung -->
+{% if s.genres %}
+<div class="chart-panel">
+  <h3>Genre-Verteilung (gespeicherte Tracks)</h3>
+  {% set max_cnt = s.genre_counts[0] if s.genre_counts else 1 %}
+  <!-- Farben fuer bis zu 8 Genres -->
+  {% set colors = ['#7c6dea','#4ade80','#60a5fa','#f87171','#fb923c','#c084fc','#34d399','#fbbf24'] %}
+  <ul class="genre-list">
+    {% for i in range(s.genres | length) %}
+      {% set pct = ((s.genre_counts[i] / max_cnt) * 100) | int %}
+      <li>
+        <div class="genre-dot" style="background: {{ colors[i % colors|length] }};"></div>
+        <span style="min-width:60px;color:#ccc;">{{ s.genres[i] | upper }}</span>
+        <div class="genre-bar-wrap">
+          <div class="genre-bar-fill"
+               style="width: {{ pct }}%; background: {{ colors[i % colors|length] }};"></div>
+        </div>
+        <span class="genre-cnt">{{ s.genre_counts[i] }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<script>
+/* Statistik per AJAX aktualisieren, ohne die Seite neu zu laden. */
+async function refreshStats() {
+  try {
+    const r = await fetch('/stats/api');
+    const d = await r.json();
+    document.getElementById('saves-today').textContent = d.saves_today;
+    document.getElementById('saves-week').textContent  = d.saves_week;
+    document.getElementById('saves-month').textContent = d.saves_month;
+    document.getElementById('gen-today').textContent   = d.gen_today;
+    document.getElementById('gen-week').textContent    = d.gen_week;
+    document.getElementById('gen-month').textContent   = d.gen_month;
+  } catch(e) {
+    console.error('Statistik konnte nicht aktualisiert werden:', e);
+  }
+}
+</script>
+{% endblock %}

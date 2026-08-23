@@ -1,30 +1,153 @@
-# --- Python ---
+# =============================================================================
+# SBS Catalog — .gitignore
+# Python / Flask / SQLite — Windows & macOS
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
 *.egg-info/
+.eggs/
 build/
 dist/
+wheels/
+sdist/
+MANIFEST
+pip-wheel-metadata/
 
-# --- Virtuelle Umgebungen ---
+
+# -----------------------------------------------------------------------------
+# Virtuelle Umgebungen
+# -----------------------------------------------------------------------------
+.venv/
 venv/
 env/
-.venv/
 ENV/
+.env/
+virtualenv/
 
-# --- SQLite-Datenbank (wird beim Start automatisch erzeugt) ---
-instance/*
-!instance/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Umgebungsvariablen & Secrets
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.secret
+secrets.json
+config.local.py
+
+
+# -----------------------------------------------------------------------------
+# Flask / Laufzeitdaten
+# -----------------------------------------------------------------------------
+# Serverseitige Sessions (Flask-Session Dateisystem-Backend)
+flask_session/
+
+# Temporaere Audio-Dateien (werden zur Laufzeit erzeugt)
+static/audio/
+
+# Hochgeladene SF2-Dateien (temporaer, nicht versionieren)
+static/uploads/
+
+
+# -----------------------------------------------------------------------------
+# Datenbank (wird beim Start automatisch erzeugt)
+# -----------------------------------------------------------------------------
+instance/
 *.db
+*.sqlite
 *.sqlite3
 
-# --- Automatisch erzeugte Demo-/Laufzeitdaten ---
+
+# -----------------------------------------------------------------------------
+# Automatisch erzeugte Demo-/Laufzeitdaten
+# -----------------------------------------------------------------------------
 sample_catalog/*
 !sample_catalog/.gitkeep
 sample_exports/*
 !sample_exports/.gitkeep
 
-# --- Editoren / Betriebssystem ---
-.vscode/
-.idea/
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+log/
+
+
+# -----------------------------------------------------------------------------
+# Betriebssystem
+# -----------------------------------------------------------------------------
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+
+# -----------------------------------------------------------------------------
+# IDEs & Editoren
+# -----------------------------------------------------------------------------
+
+# JetBrains (PyCharm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+
+# -----------------------------------------------------------------------------
+# Testing & Coverage
+# -----------------------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+
+# -----------------------------------------------------------------------------
+# Dokumentation (generiert)
+# -----------------------------------------------------------------------------
+docs/_build/
+site/
+
+
+# -----------------------------------------------------------------------------
+# Claude Code
+# -----------------------------------------------------------------------------
+.claude/
