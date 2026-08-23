@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Einstellungen</h1>
+<p class="subtitle">Kopplung an die Sound-Programme, Kostenannahmen und Preis-Stufen.</p>
+
+<form method="post">
+  <div class="panel">
+    <h2>Kopplung (read-only Pfade)</h2>
+    <div class="hint-box" style="margin-bottom:16px;">
+      Diese Ordner werden nur <strong>gelesen</strong>. Es wird nichts an Music Architect
+      oder der DAW verändert.
+    </div>
+    <label>Katalog-Ordner (Music Architect · .mid)</label>
+    <input type="text" name="catalog_dir" value="{{ s.catalog_dir }}">
+    <label>Export-Ordner (SBS-Synth · WAV/MP3)</label>
+    <input type="text" name="export_dir" value="{{ s.export_dir }}">
+  </div>
+
+  <div class="panel">
+    <h2>Kostenannahmen</h2>
+    <div class="grid grid-4">
+      <div>
+        <label>Entwicklungsstunden</label>
+        <input type="number" step="1" name="dev_hours" value="{{ s.dev_hours }}">
+      </div>
+      <div>
+        <label>Stundensatz (€)</label>
+        <input type="number" step="0.01" name="hourly_rate" value="{{ s.hourly_rate }}">
+      </div>
+      <div>
+        <label>Werkzeuge einmalig (€)</label>
+        <input type="number" step="0.01" name="tooling_cost" value="{{ s.tooling_cost }}">
+      </div>
+      <div>
+        <label>Kosten je Track (€)</label>
+        <input type="number" step="0.01" name="cost_per_track" value="{{ s.cost_per_track }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Abo & Abrechnung</h2>
+    <div class="grid grid-3">
+      <div>
+        <label>Limit Basis (Tracks/Tag)</label>
+        <input type="number" step="1" name="limit_free" value="{{ s.limit_free }}">
+      </div>
+      <div>
+        <label>Limit Abo (Tracks/Tag)</label>
+        <input type="number" step="1" name="limit_subscriber" value="{{ s.limit_subscriber }}">
+      </div>
+      <div>
+        <label>Abo-Rabatt (%)</label>
+        <input type="number" step="0.1" name="discount_pct" value="{{ s.discount_pct }}">
+      </div>
+      <div>
+        <label>Abo-Preis pro Monat (€)</label>
+        <input type="number" step="0.01" name="sub_price_month" value="{{ s.sub_price_month }}">
+      </div>
+      <div>
+        <label>Umsatzsteuer (%)</label>
+        <input type="number" step="0.1" name="vat_pct" value="{{ s.vat_pct }}">
+      </div>
+      <div>
+        <label>Verkäufer (Rechnung)</label>
+        <input type="text" name="seller_name" value="{{ s.seller_name }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Music Architect (Echtbetrieb)</h2>
+    <label>Aufrufbefehl — leer = Simulationsmodus</label>
+    <input type="text" name="music_architect_cmd" value="{{ s.music_architect_cmd }}"
+           placeholder="z. B. python /pfad/music_architect_v7/main.py --count {count}">
+    <p class="muted small" style="margin-top:8px;">Platzhalter <span class="mono">{count}</span> und <span class="mono">{user}</span> werden ersetzt.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Preis-Stufen (an DAW-Exportziele angelehnt)</h2>
+    <div class="grid grid-3">
+      {% for key, tier in tiers.items() %}
+      <div>
+        <label>{{ tier.label }} <span class="muted">· {{ tier.export }}</span></label>
+        <input type="number" step="0.01" name="price_{{ key }}" value="{{ s['price_' ~ key] }}">
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <button class="btn btn-primary" type="submit">Einstellungen speichern</button>
+</form>
+
+<div class="panel" style="margin-top:20px;">
+  <h2>Werkzeuge</h2>
+  <div class="row-actions">
+    <form method="post" action="{{ url_for('load_demo') }}"><button class="btn btn-ghost">Demo-Daten erzeugen</button></form>
+    <form method="post" action="{{ url_for('scan') }}"><button class="btn btn-ghost">↻ Ordner scannen</button></form>
+    <a class="btn btn-ghost" href="{{ url_for('audit_csv') }}">Protokoll als CSV</a>
+  </div>
+</div>
+{% endblock %}

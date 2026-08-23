@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Wirtschaftlichkeit · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Wirtschaftlichkeit</h1>
+<p class="subtitle">Kosten-Nutzen-Betrachtung, Break-even und ROI auf Basis der erfassten Verkäufe.</p>
+
+<div class="grid grid-4">
+  <div class="kpi">
+    <div class="label">Umsatz (netto, bezahlt)</div>
+    <div class="value green">{{ m.revenue_total | euro }}</div>
+    <div class="hint">Lizenzen {{ m.license_revenue | euro }} · Abos {{ m.subscription_revenue | euro }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Offene Beträge</div>
+    <div class="value amber">{{ m.open_amount | euro }}</div>
+    <div class="hint">{{ m.open_count }} unbezahlte Bestellung(en)</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Fixkosten (Invest.)</div>
+    <div class="value pink">{{ m.fixed_cost | euro }}</div>
+    <div class="hint">Entwicklung + Werkzeuge</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Gewinn</div>
+    <div class="value {{ 'green' if m.profit >= 0 else 'red' }}">{{ m.profit | euro }}</div>
+    <div class="hint">ROI: {{ '%.1f'|format(m.roi) ~ ' %' if m.roi is not none else '–' }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Rechenweg</h2>
+  <table>
+    <tbody>
+      <tr><td>Umsatz aus Lizenzen (bezahlt)</td><td class="num">{{ m.license_revenue | euro }}</td></tr>
+      <tr><td>Umsatz aus Abos (bezahlt)</td><td class="num">{{ m.subscription_revenue | euro }}</td></tr>
+      <tr><td><strong>= Umsatz gesamt</strong></td><td class="num"><strong>{{ m.revenue_total | euro }}</strong></td></tr>
+      <tr><td>− Variable Kosten ({{ m.track_count }} Tracks × {{ m.costs.cost_per_track | euro }})</td><td class="num">− {{ m.variable_cost | euro }}</td></tr>
+      <tr><td><strong>= Deckungsbeitrag</strong></td><td class="num"><strong>{{ m.contribution_margin | euro }}</strong></td></tr>
+      <tr><td>− Fixkosten ({{ m.costs.dev_hours }} h × {{ m.costs.hourly_rate | euro }} + {{ m.costs.tooling_cost | euro }})</td><td class="num">− {{ m.fixed_cost | euro }}</td></tr>
+      <tr><td><strong>= Gewinn</strong></td><td class="num"><strong>{{ m.profit | euro }}</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <h2>Break-even</h2>
+    <div class="kpi" style="border:none;padding:0;">
+      <div class="label">Nötiger Umsatz zur Kostendeckung</div>
+      <div class="value cyan">{{ m.break_even_revenue | euro }}</div>
+      <div class="hint">
+        {% if m.break_even_units is not none %}
+          ≈ {{ '%.0f'|format(m.break_even_units) }} Lizenzen bei Ø {{ m.avg_price | euro }}
+        {% else %}
+          noch keine Verkäufe für Durchschnittspreis
+        {% endif %}
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="meter"><div class="meter-fill" style="width: {{ '%.1f'|format(m.be_progress) }}%;"></div></div>
+    <div class="meter-label"><span>{{ '%.0f'|format(m.be_progress) }} % erreicht</span><span>100 %</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>Umsatz nach Genre</h2>
+    {% if m.revenue_by_genre %}
+      {% set maxg = m.revenue_by_genre[0].s if m.revenue_by_genre[0].s > 0 else 1 %}
+      {% for r in m.revenue_by_genre %}
+      <div class="bar-line">
+        <div class="bl-label">{{ r.genre }}</div>
+        <div class="bl-track"><div class="bl-fill" style="width: {{ (r.s / maxg * 100) }}%;"></div></div>
+        <div class="bl-val">{{ r.s | euro }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Noch keine Verkäufe.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="hint-box">
+  Die Kostenannahmen (Stundensatz, Stunden, Werkzeuge, Kosten pro Track) lassen sich
+  unter <a class="tracklink" href="{{ url_for('settings_view') }}">Einstellungen</a> anpassen —
+  ideal für Szenarien (pessimistisch / realistisch / optimistisch) in eurer Ausarbeitung.
+</div>
+{% endblock %}

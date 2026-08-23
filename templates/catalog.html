@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Katalog · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Katalog</h1>
+<p class="subtitle">Alle aus Music Architect eingelesenen Tracks inkl. Wasserzeichen-Status.</p>
+
+<div class="panel">
+  <form method="get" class="row-actions" style="margin-bottom:0;">
+    <div style="min-width:180px;">
+      <label>Genre</label>
+      <select name="genre" onchange="this.form.submit()">
+        <option value="">alle</option>
+        {% for g in genres %}
+        <option value="{{ g }}" {{ 'selected' if g == sel_genre }}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:180px;">
+      <label>Status</label>
+      <select name="status" onchange="this.form.submit()">
+        <option value="">alle</option>
+        <option value="available"      {{ 'selected' if sel_status=='available' }}>verfügbar</option>
+        <option value="leased"         {{ 'selected' if sel_status=='leased' }}>geleast</option>
+        <option value="exclusive_sold" {{ 'selected' if sel_status=='exclusive_sold' }}>exklusiv verkauft</option>
+      </select>
+    </div>
+    <div style="align-self:flex-end;">
+      <a class="btn btn-ghost" href="{{ url_for('catalog') }}">Filter zurücksetzen</a>
+    </div>
+  </form>
+</div>
+
+<div class="panel">
+  {% if tracks %}
+  <table>
+    <thead>
+      <tr>
+        <th>Titel</th><th>Genre</th><th>Wasserzeichen</th>
+        <th class="num">Fitness</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tracks %}
+      <tr>
+        <td><a class="tracklink" href="{{ url_for('track_detail', track_id=t.id) }}">{{ t.title }}</a></td>
+        <td>{{ t.genre }}</td>
+        <td>
+          {% if t.watermark_hash %}
+            <span class="badge badge-available">✓ verifiziert</span>
+          {% elif t.watermark_tag %}
+            <span class="badge badge-leased">Tag ohne Hash</span>
+          {% else %}
+            <span class="badge" style="color:var(--muted);border-color:var(--line);">kein WM</span>
+          {% endif %}
+        </td>
+        <td class="num">{{ '%.1f'|format(t.fitness_score) if t.fitness_score is not none else '–' }}</td>
+        <td><span class="badge badge-{{ t.status }}">{{ {'available':'verfügbar','leased':'geleast','exclusive_sold':'exklusiv'}[t.status] }}</span></td>
+        <td><a class="tracklink" href="{{ url_for('track_detail', track_id=t.id) }}">Details →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Keine Tracks gefunden. Erzeuge Demo-Daten oder scanne eure Ausgabeordner.</p>
+  <div class="row-actions">
+    <form method="post" action="{{ url_for('load_demo') }}"><button class="btn btn-primary">Demo-Daten erzeugen</button></form>
+    <form method="post" action="{{ url_for('scan') }}"><button class="btn btn-ghost">↻ Scannen</button></form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

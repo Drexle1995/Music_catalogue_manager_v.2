@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Nutzer & Abo · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Nutzer & Abo</h1>
+<p class="subtitle">Freemium-Modell: Abonnenten dürfen mehr Tracks pro Tag erzeugen und erhalten Rabatt.</p>
+
+<div class="grid grid-3">
+  <div class="kpi">
+    <div class="label">Limit Basis</div>
+    <div class="value">{{ limits.free }}<span class="muted" style="font-size:14px;"> /Tag</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Limit Abo</div>
+    <div class="value cyan">{{ limits.sub }}<span class="muted" style="font-size:14px;"> /Tag</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Abo-Rabatt</div>
+    <div class="value pink">{{ limits.discount }} %</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Nutzer</h2>
+  {% if rows %}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Abo-Status</th><th class="num">Bezüge heute</th><th>Generieren</th><th>Abo buchen</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.u.name }}<div class="muted small">{{ r.u.email or '' }}</div></td>
+        <td>
+          {% if r.u.is_subscriber %}
+            <span class="badge badge-exclusive_sold">Abo</span>
+            {% if r.u.sub_end %}<div class="muted small">bis {{ r.u.sub_end }}</div>{% endif %}
+          {% else %}
+            <span class="badge badge-leased">Basis</span>
+          {% endif %}
+        </td>
+        <td class="num">
+          {{ r.st.used }}/{{ r.st.limit }}
+          <span class="muted small">({{ r.st.remaining }} frei)</span>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('generate_track') }}" class="row-actions" style="margin:0;">
+            <input type="hidden" name="user_id" value="{{ r.u.id }}">
+            <input type="number" name="count" value="1" min="1" style="width:64px;padding:6px 8px;">
+            <button class="btn btn-ghost" type="submit"
+              {{ 'disabled style=opacity:.4;cursor:not-allowed;' if r.st.remaining == 0 }}>▶</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('subscription_start') }}" class="row-actions" style="margin:0;">
+            <input type="hidden" name="user_id" value="{{ r.u.id }}">
+            <select name="term_months" style="width:auto;padding:6px 8px;">
+              {% for t in terms %}
+              <option value="{{ t.months }}">{{ t.months }} Mon. · {{ t.price | euro }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-pink" type="submit">Buchen</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Nutzer angelegt.</p>
+  {% endif %}
+  <p class="muted small" style="margin-top:12px;">
+    „Bezüge heute“ zählt Generierungen <em>und</em> gekaufte Lizenzen zusammen gegen den
+    Tages-Topf (3 Basis / 10 Abo). „Buchen“ öffnet den simulierten Abo-Checkout; „▶“ erzeugt
+    Tracks über den Gateway. Beide Aktionen sind gesperrt, sobald der Topf leer ist.
+  </p>
+</div>
+
+<div class="panel">
+  <h2>Neuen Nutzer anlegen</h2>
+  <form method="post" action="{{ url_for('users_add') }}">
+    <div class="grid grid-3">
+      <div>
+        <label>Name</label>
+        <input type="text" name="name" placeholder="z. B. Studio Nord" required>
+      </div>
+      <div>
+        <label>E-Mail</label>
+        <input type="email" name="email" placeholder="optional">
+      </div>
+      <div>
+        <label>Abo</label>
+        <div style="padding-top:8px;">
+          <label style="display:inline;text-transform:none;letter-spacing:0;color:var(--text);">
+            <input type="checkbox" name="is_subscriber" style="width:auto;margin-right:8px;">
+            als Abonnent anlegen
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" type="submit">Nutzer anlegen</button>
+  </form>
+</div>
+{% endblock %}

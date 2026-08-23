@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Katalog & Lizenzen{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <span class="brand-name">SBS&nbsp;CATALOG</span>
+      <span class="brand-sub">Lizenz- & Wirtschaftlichkeitsmodul</span>
+    </div>
+    <nav class="nav">
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
+      <a href="{{ url_for('catalog') }}" class="{{ 'active' if request.endpoint in ['catalog','track_detail'] }}">Katalog</a>
+      <a href="{{ url_for('licenses') }}" class="{{ 'active' if request.endpoint == 'licenses' }}">Lizenzen</a>
+      <a href="{{ url_for('users_view') }}" class="{{ 'active' if request.endpoint == 'users_view' }}">Nutzer</a>
+      <a href="{{ url_for('economics_view') }}" class="{{ 'active' if request.endpoint == 'economics_view' }}">Wirtschaftlichkeit</a>
+      <a href="{{ url_for('audit') }}" class="{{ 'active' if request.endpoint == 'audit' }}">Protokoll</a>
+      <a href="{{ url_for('settings_view') }}" class="{{ 'active' if request.endpoint == 'settings_view' }}">Einstellungen</a>
+    </nav>
+    <form method="post" action="{{ url_for('scan') }}" class="topbar-action">
+      <button type="submit" class="btn btn-ghost">↻ Scannen</button>
+    </form>
+  </header>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    Ergänzungsmodul zum Gesamtpaket · koppelt read-only an Music Architect V7 &amp; SBS-Synth Master
+  </footer>
+</body>
+</html>

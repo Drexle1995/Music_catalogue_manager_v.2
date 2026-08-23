@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Lizenzen · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Verkaufte Lizenzen</h1>
+<p class="subtitle">Vollständige Verkaufshistorie über alle Tracks.</p>
+
+<div class="panel">
+  {% if licenses %}
+  <table>
+    <thead>
+      <tr><th>Datum</th><th>Track</th><th>Genre</th><th>Stufe</th><th>Typ</th><th>Käufer</th><th class="num">Listenpreis</th><th class="num">Rabatt</th><th class="num">Preis</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for l in licenses %}
+      <tr>
+        <td class="mono small">{{ l.sold_at }}</td>
+        <td><a class="tracklink" href="{{ url_for('track_detail', track_id=l.track_id) }}">{{ l.track_title }}</a></td>
+        <td>{{ l.genre }}</td>
+        <td>{{ l.tier }}</td>
+        <td>{{ 'Exklusiv' if l.license_type == 'exclusive' else 'Lease' }}</td>
+        <td>{{ l.buyer_name or '–' }}</td>
+        <td class="num">{{ (l.list_price if l.list_price is not none else l.price) | euro }}</td>
+        <td class="num">{{ (('−' ~ ('%.0f'|format(l.discount_pct)) ~ ' %') if l.discount_pct else '–') }}</td>
+        <td class="num">{{ l.price | euro }}</td>
+        <td>{% if l.payment_status == 'paid' %}<span class="badge badge-available">bezahlt</span>{% else %}<span class="badge badge-leased">offen</span>{% endif %}</td>
+        <td>{% if l.payment_status == 'paid' %}<a class="tracklink" href="{{ url_for('invoice', license_id=l.id) }}">Rechnung</a>{% else %}<a class="tracklink" href="{{ url_for('checkout', license_id=l.id) }}">Checkout →</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Lizenzen verkauft. Öffne einen Track im Katalog und verkaufe eine Lizenz.</p>
+  {% endif %}
+</div>
+{% endblock %}

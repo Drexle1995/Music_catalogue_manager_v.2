@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="subtitle">Überblick über Katalog, Lizenzerlöse und Wirtschaftlichkeit.</p>
+
+{% if m.track_count == 0 %}
+<div class="panel">
+  <h2>Noch keine Daten</h2>
+  <p class="muted">Es sind noch keine Tracks erfasst. Lade Demo-Daten (erzeugt echte
+  wasserzeichenmarkierte MIDI-Dateien) oder setze in den Einstellungen die Pfade zu
+  euren echten Ausgabeordnern und klicke oben auf „Scannen“.</p>
+  <div class="row-actions">
+    <form method="post" action="{{ url_for('load_demo') }}">
+      <button class="btn btn-primary" type="submit">Demo-Daten erzeugen</button>
+    </form>
+    <form method="post" action="{{ url_for('scan') }}">
+      <button class="btn btn-ghost" type="submit">↻ Jetzt scannen</button>
+    </form>
+    <a class="btn btn-ghost" href="{{ url_for('settings_view') }}">Pfade einstellen</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-4">
+  <div class="kpi">
+    <div class="label">Tracks im Katalog</div>
+    <div class="value cyan">{{ m.track_count }}</div>
+    <div class="hint">{{ m.status_counts.available }} verfügbar · {{ m.status_counts.leased }} geleast · {{ m.status_counts.exclusive_sold }} exklusiv</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Umsatz gesamt</div>
+    <div class="value green">{{ m.revenue_total | euro }}</div>
+    <div class="hint">Lizenzen {{ m.license_revenue | euro }} · Abos {{ m.subscription_revenue | euro }}</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Deckungsbeitrag</div>
+    <div class="value {{ 'green' if m.contribution_margin >= 0 else 'red' }}">{{ m.contribution_margin | euro }}</div>
+    <div class="hint">Umsatz − variable Kosten</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Gewinn n. Fixkosten</div>
+    <div class="value {{ 'green' if m.profit >= 0 else 'red' }}">{{ m.profit | euro }}</div>
+    <div class="hint">ROI: {{ '%.1f'|format(m.roi) ~ ' %' if m.roi is not none else '–' }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Break-even</h2>
+  <div class="meter">
+    <div class="meter-fill" style="width: {{ '%.1f'|format(m.be_progress) }}%;"></div>
+  </div>
+  <div class="meter-label">
+    <span>Umsatz {{ m.revenue_total | euro }}</span>
+    <span>Break-even bei {{ m.break_even_revenue | euro }}</span>
+  </div>
+  <p class="muted small" style="margin-top:12px;">
+    {% if m.profit >= 0 %}
+      Die Fixkosten sind gedeckt — das Projekt arbeitet profitabel.
+    {% else %}
+      Noch {{ (m.break_even_revenue - m.revenue_total) | euro }} Umsatz bis zur Deckung der einmaligen Investition.
+    {% endif %}
+  </p>
+</div>
+
+{% if m.revenue_by_tier %}
+<div class="panel">
+  <h2>Umsatz nach Lizenz-Stufe</h2>
+  {% set maxs = m.revenue_by_tier[0].s if m.revenue_by_tier[0].s > 0 else 1 %}
+  {% for r in m.revenue_by_tier %}
+  <div class="bar-line">
+    <div class="bl-label">{{ tiers[r.tier].label if r.tier in tiers else r.tier }}</div>
+    <div class="bl-track"><div class="bl-fill" style="width: {{ (r.s / maxs * 100) }}%;"></div></div>
+    <div class="bl-val">{{ r.s | euro }} <span class="muted">({{ r.n }})</span></div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

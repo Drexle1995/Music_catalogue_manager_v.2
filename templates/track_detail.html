@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ track.title }} · SBS Catalog{% endblock %}
+{% block content %}
+<h1>{{ track.title }}
+  <span class="badge badge-{{ track.status }}" style="vertical-align:middle;margin-left:8px;">
+    {{ {'available':'verfügbar','leased':'geleast','exclusive_sold':'exklusiv verkauft'}[track.status] }}
+  </span>
+</h1>
+<p class="subtitle">Genre: {{ track.genre }} · angelegt am {{ track.created_at }}</p>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <h2>Wasserzeichen (Layer 1)</h2>
+    <label>Katalog-Tag (copyright)</label>
+    <div class="mono small">{{ track.watermark_tag or '– keiner gelesen –' }}</div>
+    <div class="spacer"></div>
+    <label>SHA-256-Fingerprint</label>
+    <div class="hash">{{ track.watermark_hash or '– kein Hash gelesen –' }}</div>
+    <div class="spacer"></div>
+    <label>Quelldatei (MIDI)</label>
+    <div class="hash">{{ track.source_midi }}</div>
+  </div>
+
+  <div class="panel">
+    <h2>Gemasterte Exporte (DAW)</h2>
+    {% if exports %}
+    <table>
+      <thead><tr><th>Stufe</th><th>Format</th><th>Datei</th></tr></thead>
+      <tbody>
+        {% for e in exports %}
+        <tr>
+          <td>{{ tiers[e.tier].label if e.tier in tiers else e.tier }}</td>
+          <td class="mono">{{ e.file_format }}</td>
+          <td class="hash">{{ e.file_path.split('/')[-1] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Exportdateien zugeordnet. Nach dem DAW-Export „Scannen“ klicken.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Lizenz verkaufen</h2>
+  {% if track.status == 'exclusive_sold' %}
+    <div class="hint-box">Dieser Track wurde exklusiv verkauft und ist gesperrt.
+    Eine weitere Lizenzierung ist nicht mehr möglich (Exklusiv-Schutz).</div>
+  {% else %}
+  <form method="post" action="{{ url_for('sell') }}">
+    <input type="hidden" name="track_id" value="{{ track.id }}">
+    <div class="grid grid-3">
+      <div>
+        <label>Lizenz-Stufe</label>
+        <select name="tier">
+          {% for key, tier in tiers.items() %}
+          <option value="{{ key }}">{{ tier.label }} — {{ tier.price | euro }}{{ ' · EXKLUSIV' if tier.kind == 'exclusive' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Käufer (registriert)</label>
+        <select name="buyer_user">
+          <option value="">– Gast (kein Rabatt) –</option>
+          {% for u in users %}
+          <option value="{{ u.id }}">{{ u.name }}{{ ' · Abo −' ~ '' if u.is_subscriber }}{{ ' (Abo, Rabatt)' if u.is_subscriber }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Käufer-Name (falls Gast)</label>
+        <input type="text" name="buyer_name" placeholder="z. B. Max Mustermann">
+      </div>
+    </div>
+    <label>Notiz</label>
+    <input type="text" name="notes" placeholder="optional">
+    <p class="muted small" style="margin-top:8px;">
+      Wird ein registrierter Abonnent als Käufer gewählt, zieht das System den Abo-Rabatt automatisch vom Listenpreis ab.
+      Der Kauf zählt außerdem als Tages-Bezug des Käufers (gemeinsamer Topf mit Generierungen); bei erschöpftem Limit wird er abgelehnt.
+    </p>
+    <div class="spacer"></div>
+    <button class="btn btn-pink" type="submit">Lizenz verkaufen</button>
+    <p class="muted small" style="margin-top:10px;">
+      Bei einer Exklusiv-Lizenz wird der Track anschließend automatisch für alle weiteren Verkäufe gesperrt.
+    </p>
+  </form>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Lizenz-Historie</h2>
+  {% if licenses %}
+  <table>
+    <thead><tr><th>Datum</th><th>Stufe</th><th>Typ</th><th>Käufer</th><th class="num">Rabatt</th><th class="num">Preis</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for l in licenses %}
+      <tr>
+        <td class="mono small">{{ l.sold_at }}</td>
+        <td>{{ tiers[l.tier].label if l.tier in tiers else l.tier }}</td>
+        <td>{{ 'Exklusiv' if l.license_type == 'exclusive' else 'Lease' }}</td>
+        <td>{{ l.buyer_name or '–' }}</td>
+        <td class="num">{{ (('−' ~ ('%.0f'|format(l.discount_pct)) ~ ' %') if l.discount_pct else '–') }}</td>
+        <td class="num">{{ l.price | euro }}</td>
+        <td>
+          {% if l.payment_status == 'paid' %}
+            <span class="badge badge-available">bezahlt</span>
+          {% else %}
+            <span class="badge badge-leased">offen</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if l.payment_status == 'paid' %}
+            <a class="tracklink" href="{{ url_for('invoice', license_id=l.id) }}">Rechnung</a>
+          {% else %}
+            <a class="tracklink" href="{{ url_for('checkout', license_id=l.id) }}">Checkout →</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Lizenz verkauft.</p>
+  {% endif %}
+</div>
+
+<a class="btn btn-ghost" href="{{ url_for('catalog') }}">← zurück zum Katalog</a>
+{% endblock %}
