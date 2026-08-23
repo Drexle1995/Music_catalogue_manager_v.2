@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- Virtuelle Umgebungen ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- SQLite-Datenbank (wird beim Start automatisch erzeugt) ---
+instance/*
+!instance/.gitkeep
+*.db
+*.sqlite3
+
+# --- Automatisch erzeugte Demo-/Laufzeitdaten ---
+sample_catalog/*
+!sample_catalog/.gitkeep
+sample_exports/*
+!sample_exports/.gitkeep
+
+# --- Editoren / Betriebssystem ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
