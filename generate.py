@@ -120,8 +120,38 @@ def _quota_remaining(user_id: int, tier: str):
     return daily_rem, monthly_rem, daily_used, monthly_used
 
 
+def _read_seed_from_session(audio_uuid: str) -> int | None:
+    """Liest den Kompositions-Seed aus der gespeicherten composition.json.
+
+    Gibt den Seed-Wert (int) zurueck oder None, falls nicht verfuegbar.
+    Wird beim ersten Export aufgerufen, um den Seed dauerhaft im Katalog zu sichern.
+    """
+    tmp_dir_str = session.get(f"temp_dir_{audio_uuid}")
+    if not tmp_dir_str:
+        return None
+    comp_path = pathlib.Path(tmp_dir_str) / "composition.json"
+    if not comp_path.exists():
+        return None
+    try:
+        comp_data = json.loads(comp_path.read_text(encoding="utf-8"))
+        # Seed liegt unter composition.config.seed_value (MA-V7-Struktur).
+        seed_val = (comp_data
+                    .get("composition", {})
+                    .get("config", {})
+                    .get("seed_value"))
+        return int(seed_val) if seed_val is not None else None
+    except Exception:
+        return None
+
+
 def _persist_track(audio_uuid: str, user_id: int) -> int | None:
     """Speichert den Beat dauerhaft: WAV kopieren, Datenbank-Eintraege anlegen.
+
+    Wird beim ersten Download (Audio oder MIDI) automatisch aufgerufen.
+    Status wird sofort als 'exclusive_sold' gesetzt, da der Beat vom Nutzer
+    heruntergeladen wurde und nicht mehr frei verfuegbar ist.
+    Der Seed wird in watermark_tag gespeichert, um spaetere Rückverfolgbarkeit
+    zu ermoeglichen (Traceability ohne harte Seed-Sperre).
 
     Gibt track_id zurueck oder None bei Fehler.
     Plattformunabhaengig: Pfade werden als POSIX-Strings (Slashes) gespeichert.
@@ -137,6 +167,10 @@ def _persist_track(audio_uuid: str, user_id: int) -> int | None:
     now   = __import__("datetime").datetime.now().isoformat(timespec="seconds")
     name  = f"{genre}_{now[:10]}"
 
+    # Seed fuer Traceability auslesen (kein Pflichtfeld — schlaegt still fehl).
+    seed_tag = _read_seed_from_session(audio_uuid)
+    watermark_tag = f"seed:{seed_tag}" if seed_tag is not None else None
+
     # Zielverzeichnis plattformunabhaengig aufbauen.
     audio_dir = pathlib.Path(__file__).parent / "static" / "audio" / str(user_id)
     audio_dir.mkdir(parents=True, exist_ok=True)
@@ -149,9 +183,10 @@ def _persist_track(audio_uuid: str, user_id: int) -> int | None:
     conn = db.get_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO tracks (title, genre, user_id, status, created_at) "
-            "VALUES (?, ?, ?, 'available', ?)",
-            (name, genre, user_id, now),
+            "INSERT INTO tracks "
+            "(title, genre, user_id, status, watermark_tag, created_at) "
+            "VALUES (?, ?, ?, 'exclusive_sold', ?, ?)",
+            (name, genre, user_id, watermark_tag, now),
         )
         track_id = cur.lastrowid
         # as_posix() stellt Forward-Slashes auf allen Betriebssystemen sicher.
@@ -169,7 +204,8 @@ def _persist_track(audio_uuid: str, user_id: int) -> int | None:
         return None
     conn.close()
     db.log_event("EXPORT_SAVE", "track", track_id,
-                 {"user_id": user_id, "audio_uuid": audio_uuid, "genre": genre})
+                 {"user_id": user_id, "audio_uuid": audio_uuid,
+                  "genre": genre, "seed_tag": watermark_tag})
     return track_id
 
 
@@ -200,16 +236,21 @@ def generate_page():
     ]:
         gm_descs[track_key] = gm_desc_data.descriptions_for_track(track_key, options)
 
+    # Vollstaendige GM → BDRA-Zuordnung einmalig berechnen und als JSON uebergeben.
+    # Wird im Frontend fuer die Theorie-Bewertung bei manuellen Instrument-Aenderungen benoetigt.
+    gm_bdra_codes = _palette_data.get_all_gm_bdra_codes()
+
     return render_template(
         "generate.html",
-        tier               = current_user.tier,
-        daily_remaining    = daily_rem,
-        monthly_remaining  = monthly_rem,
-        _instruments       = _INSTRUMENTS,
-        _fusion_presets    = _FUSION_PRESETS,
-        _fusion_genres     = fusion_data.AVAILABLE_GENRES,
-        _gm_descs_json     = _json.dumps(gm_descs),
-        _groove_genres_json= _json.dumps(groove_data.AVAILABLE_GENRES),
+        tier                 = current_user.tier,
+        daily_remaining      = daily_rem,
+        monthly_remaining    = monthly_rem,
+        _instruments         = _INSTRUMENTS,
+        _fusion_presets      = _FUSION_PRESETS,
+        _fusion_genres       = fusion_data.AVAILABLE_GENRES,
+        _gm_descs_json       = _json.dumps(gm_descs),
+        _groove_genres_json  = _json.dumps(groove_data.AVAILABLE_GENRES),
+        _gm_bdra_codes_json  = _json.dumps(gm_bdra_codes),
     )
 
 
@@ -300,6 +341,29 @@ def generate_track():
 
     # Ob ein stummes Beat-Rendering ohne Lead-/Pad-/Arp-Stimmen gewuenscht ist.
     vocal_mask = gen_mode in ("vocal_ready", "both")
+
+    # --- Seed-Sperre: exklusiv verkaufte Seeds koennen nicht erneut generiert werden ---
+    # Nur pruefen wenn der Nutzer einen expliziten Seed eingegeben hat (kein Zufalls-Seed).
+    if seed:
+        try:
+            seed_int = int(seed)
+            _conn = db.get_conn()
+            _row  = _conn.execute(
+                "SELECT id FROM tracks "
+                "WHERE watermark_tag = ? AND status = 'exclusive_sold' LIMIT 1",
+                (f"seed:{seed_int}",),
+            ).fetchone()
+            _conn.close()
+            if _row:
+                return jsonify({
+                    "error":   "seed_locked",
+                    "message": (
+                        f"Seed {seed_int} wurde bereits exklusiv verkauft "
+                        "und kann nicht erneut generiert werden."
+                    ),
+                }), 409
+        except ValueError:
+            pass  # Kein gueltiger Integer-Seed — wird spaeter in CompositionConfig behandelt.
 
     try:
         _ensure_ma_path()
@@ -655,7 +719,7 @@ def save_track():
     try:
         cur = conn.execute(
             "INSERT INTO tracks (title, genre, user_id, status, created_at) "
-            "VALUES (?, ?, ?, 'available', ?)",
+            "VALUES (?, ?, ?, 'exclusive_sold', ?)",
             (name, genre, current_user.id, now),
         )
         track_id = cur.lastrowid
@@ -838,6 +902,15 @@ def rerender_track():
         comp_data   = json.loads(comp_path.read_text(encoding="utf-8"))
         composition = comp_data["composition"]
         bpm_val     = float(comp_data.get("bpm", 120.0))
+
+        # Genre-Standard SF2 als Fallback wenn kein SF2 explizit ausgewaehlt.
+        if not sf2_path:
+            try:
+                _ensure_ma_path()
+                from rendering.soundfont_library import SoundFontLibrary
+                sf2_path = SoundFontLibrary().select(comp_data.get("genre", ""))
+            except Exception:
+                pass
 
         modified = groove_processor.apply_groove_to_composition(
             composition, track_params, bpm_val)

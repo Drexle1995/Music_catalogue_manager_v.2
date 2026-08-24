@@ -110,6 +110,40 @@ def get_palette_by_id(genre: str, palette_id: str) -> Optional[Dict]:
 
 
 # ---------------------------------------------------------------------------
+# Vollstaendige GM → BDRA-Zuordnung (genreuebergreifend)
+# ---------------------------------------------------------------------------
+
+def get_all_gm_bdra_codes() -> Dict[str, Dict[int, str]]:
+    """
+    Gibt eine vollstaendige Zuordnung von GM-Programmnummer zu BDRA-Code
+    fuer alle Spur-Typen zurueck, aggregiert aus allen Genres und Paletten.
+
+    Rueckgabe: { spur_key: { gm_nummer: bdra_code } }
+    Beispiel:  { "bass": { 35: "B0 D2 A1 R0", 34: "B0 D2 A1 R0" }, ... }
+
+    Wird einmalig beim ersten Aufruf berechnet und danach gecacht.
+    """
+    if _gm_bdra_cache:
+        return _gm_bdra_cache
+
+    alle_paletten = _load_palettes()
+    # Ueber alle Genres und alle Paletten iterieren
+    for genre_paletten in alle_paletten.values():
+        for palette in genre_paletten:
+            for spur_key, instr in palette.get("instruments", {}).items():
+                gm   = instr.get("gm")
+                code = instr.get("code", "")
+                if gm is not None and code:
+                    _gm_bdra_cache.setdefault(spur_key, {})[int(gm)] = code
+
+    return _gm_bdra_cache
+
+
+# Laufzeit-Cache fuer get_all_gm_bdra_codes (einmalig befuellt)
+_gm_bdra_cache: Dict[str, Dict[int, str]] = {}
+
+
+# ---------------------------------------------------------------------------
 # BDRA-Hilfsfunktionen
 # ---------------------------------------------------------------------------
 
