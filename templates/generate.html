@@ -519,9 +519,9 @@
                 <span class="theory-grade-badge" id="theoryGrade"></span>
               </div>
               <div class="theory-checks">
-                <div class="theory-check"><span class="tc-dot" id="tcdot_p1">●</span><span class="tc-lbl">P1 BPM</span><span class="tc-det" id="tcd_p1">—</span></div>
-                <div class="theory-check"><span class="tc-dot" id="tcdot_p2">●</span><span class="tc-lbl">P2 Tonleiter</span><span class="tc-det" id="tcd_p2">—</span></div>
-                <div class="theory-check"><span class="tc-dot" id="tcdot_p3">●</span><span class="tc-lbl">P3 Register</span><span class="tc-det" id="tcd_p3">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p1">●</span><span class="tc-lbl">P1 Sub-Bass</span><span class="tc-det" id="tcd_p1">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p2">●</span><span class="tc-lbl">P2 Register</span><span class="tc-det" id="tcd_p2">—</span></div>
+                <div class="theory-check"><span class="tc-dot" id="tcdot_p3">●</span><span class="tc-lbl">P3 Attack</span><span class="tc-det" id="tcd_p3">—</span></div>
                 <div class="theory-check"><span class="tc-dot" id="tcdot_p4">●</span><span class="tc-lbl">P4 Dichte</span><span class="tc-det" id="tcd_p4">—</span></div>
                 <div class="theory-check"><span class="tc-dot" id="tcdot_p5">●</span><span class="tc-lbl">P5 Helligkeit</span><span class="tc-det" id="tcd_p5">—</span></div>
               </div>
@@ -2256,15 +2256,13 @@ function setPaletteVariant(variantId) {
 
 async function checkTheory() {
   if(!G.lastData){alert('Zuerst einen Beat generieren.'); return;}
-  const meta  = G.lastData.output_meta||{};
-  const genre = meta.genre||'pop';
-  const bpm   = meta.bpm||120;
-  const keyParts=(meta.key||'').split(' ');
-  const scale=keyParts.length>=2?keyParts.slice(1).join('_'):'minor';
 
-  // BDRA-Codes lesen: grooveState hat Vorrang, danach Fallback auf aktuell gewaehlte Palette.
-  // Damit wird der korrekte Code auch dann verwendet wenn ein Instrument ohne bekannten
-  // BDRA-Code gewaehlt wurde (Sticky-Logik in onGrooveInstrChange behaelt alten Code).
+  // Branch aus der gewaehlten Palette lesen (A/B/C); Standard 'A' wenn keine Palette.
+  const branch = G.currentPalette?.branch || 'A';
+
+  // BDRA-Codes lesen: grooveState hat Vorrang, danach Fallback auf Palette-Daten.
+  // Sticky-Logik in onGrooveInstrChange stellt sicher, dass bekannte Codes
+  // nicht durch unbekannte Instrumente ueberschrieben werden.
   const instruments={};
   GROOVE_TRACKS.forEach(({key})=>{
     const code = G.grooveState[key]?.code
@@ -2272,10 +2270,11 @@ async function checkTheory() {
               || null;
     if(code) instruments[key] = {code};
   });
+
   try {
     const res=await fetch('/theory_score',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({genre,bpm,scale,instruments}),
+      body:JSON.stringify({branch, instruments}),
     });
     const result=await res.json();
     renderTheoryResult(result);

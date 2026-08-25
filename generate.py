@@ -27,6 +27,7 @@ import database as db
 import export_service
 import fusion_data
 import palette_data as _palette_data
+import theory_scorer as _theory_scorer
 import gm_desc_data
 import groove_data
 import groove_processor
@@ -1210,15 +1211,14 @@ def palette_data_route(genre: str):
 @login_required
 def theory_score_route():
     """
-    Berechnet den Theorie-Score (P1-P5) fuer eine Instrumenten-Wahl.
-    Erwartet JSON: {genre, bpm, scale, instruments: {bass:{code}, lead:{code}, ...}}
+    Berechnet den Theorie-Score (P1-P5) mit MA-V7-BDRA-Validierung.
+    Erwartet JSON: {branch, instruments: {bass:{code}, lead:{code}, ...}}
+    branch: 'A', 'B' oder 'C' (aus der gewaehlten Palette, Standard: 'A').
     """
     data        = request.get_json(silent=True) or {}
-    genre       = data.get("genre", "pop")
-    bpm         = float(data.get("bpm", 120.0))
-    scale       = data.get("scale", "minor")
+    branch      = data.get("branch", "A")
     instruments = data.get("instruments", {})
-    result      = _palette_data.score_theory(genre, bpm, scale, instruments)
+    result      = _theory_scorer.score_instruments(branch, instruments)
     return jsonify(result)
 
 
