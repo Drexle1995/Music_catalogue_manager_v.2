@@ -110,30 +110,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entity_id  TEXT,
     details    TEXT                          -- JSON mit Zusatzinfos
 );
-
--- Sample-Bibliothek: Metadaten zu Audio-Samples (WAV/AIFF/FLAC).
--- Kompatibilitaets-Score und Transponierempfehlung werden zur Laufzeit
--- pro Song-Key berechnet und nicht gespeichert.
--- Track-Zuordnungen sind sitzungsgebunden und werden nicht persistent abgelegt.
-CREATE TABLE IF NOT EXISTS samples (
-    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    path                 TEXT    NOT NULL UNIQUE,         -- POSIX-Pfad zur Audiodatei
-    name                 TEXT    NOT NULL,                -- Anzeigename im Sample-Browser
-    category             TEXT    NOT NULL                 -- Oberkategorie: tone | color | environment
-                         CHECK(category IN ('tone', 'color', 'environment')),
-    subcategory          TEXT    NOT NULL,                -- Unterklasse innerhalb der Kategorie
-    root_note            INTEGER,                         -- MIDI-Notennummer 0-127 (NULL = atonal)
-    root_hz              REAL,                            -- Grundfrequenz in Hz (NULL = unbekannt)
-    duration_sec         REAL    NOT NULL DEFAULT 0.0,   -- Laenge des Samples in Sekunden
-    spectral_centroid_hz REAL    NOT NULL DEFAULT 0.0,   -- Spektraler Schwerpunkt in Hz
-    source_sample_rate   INTEGER NOT NULL DEFAULT 44100, -- Abtastrate der Quelldatei
-    channels             INTEGER NOT NULL DEFAULT 1      -- 1 = Mono, 2 = Stereo
-                         CHECK(channels IN (1, 2)),
-    tags                 TEXT    NOT NULL DEFAULT '[]',  -- JSON-Array freier Suchbegriffe
-    bpm                  REAL,                           -- erkanntes Tempo in BPM (NULL = arhythmisch)
-    analysed             INTEGER NOT NULL DEFAULT 0,     -- 0 = unanalysiert, 1 = analysiert
-    created_at           TEXT    NOT NULL                -- ISO-Zeitstempel der Erfassung
-);
 """
 
 
@@ -210,31 +186,6 @@ def init_db():
                   conn.execute("PRAGMA table_info(tracks)").fetchall()}
     if "user_id" not in track_cols:
         conn.execute("ALTER TABLE tracks ADD COLUMN user_id INTEGER REFERENCES users(id)")
-
-    # Migration: samples-Tabelle fuer aeltere Datenbanken nachtraglich anlegen.
-    # CREATE TABLE IF NOT EXISTS genuegt hier, da die Tabelle im SCHEMA oben
-    # bereits definiert ist und executescript sie beim Erstlauf anlegt.
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS samples (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            path                 TEXT    NOT NULL UNIQUE,
-            name                 TEXT    NOT NULL,
-            category             TEXT    NOT NULL
-                                 CHECK(category IN ('tone', 'color', 'environment')),
-            subcategory          TEXT    NOT NULL,
-            root_note            INTEGER,
-            root_hz              REAL,
-            duration_sec         REAL    NOT NULL DEFAULT 0.0,
-            spectral_centroid_hz REAL    NOT NULL DEFAULT 0.0,
-            source_sample_rate   INTEGER NOT NULL DEFAULT 44100,
-            channels             INTEGER NOT NULL DEFAULT 1
-                                 CHECK(channels IN (1, 2)),
-            tags                 TEXT    NOT NULL DEFAULT '[]',
-            bpm                  REAL,
-            analysed             INTEGER NOT NULL DEFAULT 0,
-            created_at           TEXT    NOT NULL
-        );
-    """)
 
     # --- Zwei Demo-Nutzer anlegen, damit Rabatt & Limit sofort erlebbar sind -
     user_count = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
