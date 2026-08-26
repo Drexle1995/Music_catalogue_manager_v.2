@@ -1,31 +1,40 @@
-# SBS Catalog — Lizenz- & Wirtschaftlichkeitsmodul
+# SBS Catalog — Web-Frontend für Music Architect V7
 
-Kaufmännisches Ergänzungsmodul zum Musikproduktions-Gesamtpaket aus
-**Music Architect V7** (AI-Beat-Generator) und **SBS-Synth Master** (DAW/Mastering).
+Webbasiertes Produktions- und Verwaltungsmodul zum Musikproduktions-Gesamtpaket aus
+**Music Architect V7** (KI-Beat-Generator) und **SBS-Synth Master** (DAW/Mastering).
 
-Das Modul verwaltet den erzeugten Musikkatalog, verkauft Lizenzen mit Exklusiv-Schutz,
-rechnet die Wirtschaftlichkeit (Umsatz, Deckungsbeitrag, Break-even, ROI) und führt ein
-revisionssicheres Audit-Protokoll. Es ist der betriebswirtschaftliche Teil des
-Abschlussprojekts und macht aus der reinen Produktionstechnik ein verkaufsfähiges Produkt.
+Das System verbindet Beat-Generierung, Klanggestaltung, Lizenzverwaltung und
+Wirtschaftlichkeitsrechnung in einer einzigen Weboberfläche — von der Idee bis zum
+verkaufsfähigen Track.
 
-## Kernidee: read-only Kopplung
+---
 
-Das Modul **verändert weder Music Architect noch die DAW**. Es liest ausschließlich deren
-Ausgabedateien:
+## Übersicht der Funktionsbereiche
 
-- **Katalog** ← `.mid`-Dateien von Music Architect (inkl. Layer-1-Wasserzeichen:
-  `copyright`-Tag + SHA-256-Hash, ausgelesen per `mido`).
-- **Exporte** ← gemasterte Audiodateien der DAW (WAV/MP3), zugeordnet über den Dateinamen
-  und die vier Export-Stufen (Preview / Streaming / Lease / Trackout).
+| Bereich | Kurzbeschreibung |
+|---|---|
+| Beat-Generierung | KI-gesteuerter Beat-Generator mit Prompt, Genre, BPM, Tonart |
+| Groove & Mixer | Per-Spur Lautstärke, Swing, Nudge, Velocity, Humanisierung |
+| Feel-Presets | Benannte Genre-Feels (z. B. „Boom Bap", „Dark Memphis") |
+| Theory-Score | Psychoakustische BDRA-Validierung nach MA V7-Regeln (P1–P5) |
+| Samples | Upload eigener Audiodateien pro Instrument-Spur |
+| Timbre-Editor | Synthesizer-Parameter (Attack, Decay, Brightness, Drive) |
+| Production Advisor | Automatische Mixing-Empfehlungen nach Genre-Regeln |
+| Piano Roll | Visuelle Notenansicht aller erzeugten Spuren |
+| Katalog | Verwaltung aller erzeugten Tracks mit Genre- und Statusfilter |
+| Lizenzverkauf | Stufenmodell (Preview / Streaming / Lease / Exklusiv) mit Checkout |
+| Wirtschaftlichkeit | Umsatz, Deckungsbeitrag, Break-even, ROI |
+| Audit-Protokoll | Revisionssicheres Ereignisprotokoll, CSV-Export |
+| Auth & Rollen | Login, Admin-Rolle, Freemium-Kontingent |
 
-Dadurch bleibt die Kopplung robust und die beiden Sound-Programme im Fokus — dieses Modul
-ergänzt lediglich.
+---
 
 ## Installation
 
 ```bash
-cd music_catalog_manager
+cd Music_catalogue_manager_v.2
 python -m venv venv
+
 # Windows:
 venv\Scripts\activate
 # macOS/Linux:
@@ -40,120 +49,319 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Dann im Browser öffnen: <http://127.0.0.1:5000>
+Browser öffnen: <http://127.0.0.1:5000>
 
-## Erster Durchlauf (Demo, ohne echte Daten)
+Standardmäßig wird die Anwendung auf `127.0.0.1:5000` gestartet.  
+Der Music Architect V7 muss sich im übergeordneten Verzeichnis befinden:
+`../MUSIC_ARCHITECT_V7/`.
 
-1. Auf dem Dashboard **„Demo-Daten erzeugen“** klicken. Das schreibt echte
-   wasserzeichenmarkierte MIDI-Dateien nach `sample_catalog/` und Platzhalter-Exporte
-   nach `sample_exports/` — also ein vollständiger, nicht simulierter End-to-End-Test.
-2. Oben rechts **„↻ Scannen“** klicken. Der Katalog und die Exporte werden eingelesen.
-3. Im **Katalog** einen Track öffnen und eine **Lizenz verkaufen** (z. B. Exklusiv).
-   Ein exklusiv verkaufter Track wird danach automatisch gesperrt.
-4. **Wirtschaftlichkeit** und **Protokoll** ansehen.
+---
 
-## Echtbetrieb (Kopplung an eure Ordner)
+## Beat-Generierung
 
-Unter **Einstellungen** die beiden Pfade setzen:
+Der Kern der Anwendung. Ein Beat wird durch folgende Parameter gesteuert:
 
-- *Katalog-Ordner*: wohin Music Architect die watermarked `.mid` schreibt
-  (z. B. `.../music_architect_v7/Watermarked_Catalog`).
-- *Export-Ordner*: wohin die DAW die gemasterten Audiodateien exportiert.
+**Basis-Parameter**
+- **Prompt** — Freitext-Eingabe (z. B. „dark cinematic trap beat"), wird automatisch
+  in Genre, BPM und Tonart dekodiert.
+- **Genre** — trap, phonk, hiphop, techno, house, edm, pop, cinematic, jpop u. a.
+- **BPM** — manuell oder automatisch durch den Generator.
+- **Komplexität** (1–10) — Dichte der Patterns.
+- **Seed** — reproduzierbare Ergebnisse bei gleichem Seed.
 
-Danach **„↻ Scannen“**. Passt euer DAW-Export ein anderes Namensschema an, könnt ihr die
-Suffix-Zuordnung in `config.py` (`EXPORT_SUFFIX_MAP`) anpassen.
+**Tonart & Struktur**
+- Ton (C, C#, D … B), Tonleiter (major, minor, dorian, phrygian, blues …)
+- Takte, Bars, Strukturvariante.
+
+**Instrumente (manuell ändern vor Re-Rendering)**
+- Pro Spur (Drums, Bass, Lead, Chords, Pad, Arp, Stabs, Texture, FX) kann das
+  GM-Programm manuell überschrieben werden.
+- Ein **Theory-Score** (0–100) bewertet die Instrumentkombination nach den fünf
+  psychoakustischen BDRA-Prinzipien von MA V7 (P1 Sub-Bass, P2 Register,
+  P3 Attack-Kontrast, P4 Dichte, P5 Helligkeit). Note: EXZELLENT / GUT /
+  BEFRIEDIGEND / VERBESSERUNGSBEDARF.
+
+**Rendering-Modi**
+- **Builtin-Synthesizer** — plattformunabhängig, kein externes Tool nötig.
+- **SF2 / FluidSynth** — hochwertigere Ausgabe mit SoundFont-Bibliothek; Genre-Standard
+  wird automatisch gewählt, eigene `.sf2`-Datei kann hochgeladen werden.
+- **Modus „Beide"** — erzeugt gleichzeitig eine instrumentale und eine Vocal-Mask-Version.
+
+---
+
+## Groove & Mixer
+
+Der Groove-Bereich erscheint nach der Generierung im Reiter **Groove & Mix — Re-Render**.
+
+### Mixer-Schieberegler (pro Spur)
+- **Lautstärke** (dB) — kontinuierlicher Fader.
+- **Mute / Solo** — Spur stumm oder solo rendern.
+- **Pan** — Stereoposition.
+- **C-Button** — öffnet das erweiterte Groove-Param-Panel für die Spur.
+- **S-Button** — Solo-Vorschau der Spur (ohne erneute Voll-Generierung).
+
+### Groove-Parameter pro Spur
+- **Swing** (25–75 %) — Off-Beat-Verschiebung der 16tel-Noten; 50 = gerade.
+- **Nudge** (ms) — fester Timing-Versatz der gesamten Spur (negativ = Pocket).
+- **Velocity-Bereich** (min/max) — Dynamik der Spur eingrenzen.
+- **Velocity-Kurve** — flat, accent, crescendo, diminuendo.
+- **Velocity-Humanisierung** — zufälliger ±Jitter auf Velocity.
+- **Timing-Humanisierung** — zufälliger ±Jitter in ms.
+- **Seed** — reproduzierbarer Humanisierungseffekt.
+- **Transpose** — Halbtonverschiebung der Spur.
+
+### Genre-Presets & Feel-Presets
+- **Genre-Dropdown** — lädt theorie-korrekte Mixer-Grundwerte (Gain, Pan, Swing,
+  Velocity-Bereiche) für das gewählte Genre.
+- **Feel-Dropdown** — benannte Varianten pro Genre, z. B.:
+  - *hiphop*: Boom Bap, Lo-Fi Chill, Modern Rap
+  - *trap*: Standard, Dark Memphis, Melodic Trap, Phonk Trap
+  - *house*: Deep Chill, Tech House, Classic House
+  - *techno*: Minimal, Hard Industrial, Detroit, Hypnotic
+  - *phonk*: Classic Drift, Brazilian Rave, Slowed Chopped
+  - *edm*: Festival, Future Bass, Progressive
+  - *pop*: Radio Hit, Indie, Dance Pop
+- **Preset laden** — übernimmt Genre- oder Feel-Werte in alle Schieberegler.
+- **Zurücksetzen** — setzt alle Mixer-Werte auf Null zurück.
+
+### Groove-Stacking-Schutz
+Jeder Re-Render startet immer von der **originalen, unbearbeiteten Komposition** —
+Groove-Effekte akkumulieren sich nicht über mehrere Re-Renders.  
+Intern: `CompositionGroover` (MA V7, Beat-Raum) für Timing/Velocity,
+`groove_processor.py` (Web) für Mute/Lautstärke/Instrument-Änderungen.
+
+---
+
+## Samples — Eigene Audiodateien pro Spur
+
+Im Panel **Samples (eigene Audio-Dateien pro Track)** kann pro Spur eine eigene
+Audiodatei hinterlegt werden, die den eingebauten Synthesizer für diese Spur ersetzt.
+
+- **Unterstützte Formate**: WAV, AIFF, FLAC, OGG, MP3
+- **Maximale Dateigröße**: 20 MB pro Sample
+- **Browse** (📁) — öffnet den Datei-Dialog für die Spur.
+- **Vorschau** (▶) — spielt die zugewiesene Datei direkt im Browser ab (Web Audio API).
+- **Löschen** (✕) — entfernt die Zuweisung und die serverseitige Datei.
+- Hochgeladene Samples bleiben über mehrere Re-Renders erhalten (Session-basiert).
+- Wenn Samples zugewiesen sind, wird SF2/FluidSynth automatisch deaktiviert.
+
+---
+
+## Timbre-Editor
+
+Per-Instrument-Klangsynthese-Parameter für vier Rollen:
+
+| Rolle | Parameter |
+|---|---|
+| **KICK** | Pitch Ende (Hz), Rauschanteil, Ausklingen (ms) |
+| **SNARE** | Pitch (Hz), Rauschanteil, Ausklingen (ms) |
+| **HI-HAT** | Ausklingen (ms), Rauschanteil (Helligkeit), Sättigung |
+| **MELODIC** | Anschlag (ms), Helligkeit, Sättigung |
+
+- Jede Rolle bietet ein **Preset-Dropdown** mit vordefinierten Klangcharakteren.
+- Einzelne Schieberegler können nach dem Laden eines Presets feineingestellt werden.
+- Alle Werte fließen beim Re-Render in den eingebauten Synthesizer ein.
+
+---
+
+## Production Advisor
+
+Nach der Generierung analysiert der Advisor automatisch die Komposition und zeigt
+im gleichnamigen Reiter detaillierte Empfehlungen:
+
+| Sektion | Inhalt |
+|---|---|
+| Palette & Prompt-Analyse | verwendete Palette, dekodierter Prompt, erkanntes Genre |
+| Instrumente | GM-Programm und Beschreibung pro Spur |
+| Gain Staging & Ziele | Ziel-RMS, Peak, LUFS-S und empfohlener Fader pro Spur |
+| Effektketten | empfohlene Insert-Effekte (EQ, Kompressor, Sättiger …) |
+| Frequenzallokation | HPF/LPF-Zonen pro Spur zur Vermeidung von Maskierung |
+| BPM-Zeitwerte | ms-Werte für 1/4, 1/8, 1/16, dotted, triplet beim aktuellen BPM |
+| Export-Ziele | empfohlene Lautheitsziele je Plattform (Spotify, YouTube …) |
+| Groove & Mix | Kurzzusammenfassung der angewendeten Groove-Einstellungen |
+
+Alle Sektionen starten eingeklappt und werden per Klick geöffnet.
+
+---
+
+## Piano Roll
+
+Zeigt alle Noten der erzeugten Komposition als interaktive Piano Roll:
+- Jede Spur hat eine eigene Farbe.
+- Horizontal = Zeit (Takte), vertikal = Tonhöhe (MIDI-Note).
+- Zoom In / Out / Reset.
+- Klick auf die Waveform-Zeitleiste springt zur gewünschten Position.
+
+---
+
+## Export
+
+Nach dem Generieren oder Re-Rendern stehen folgende Exportformate zur Verfügung:
+
+| Format | Beschreibung |
+|---|---|
+| WAV 24-bit / 44.1 kHz | unkomprimiertes Studioformat |
+| WAV 16-bit / 44.1 kHz | CD-Qualität |
+| MP3 320 kbps | universell kompatibel |
+| FLAC | verlustfrei komprimiert |
+| MIDI | rohe Notendaten für die DAW |
+
+Das Kontingent wird **nur beim Speichern / Download** verbraucht, nicht beim Vorhören.
+
+---
+
+## Katalog- & Lizenzverwaltung
+
+### Katalog
+- Zeigt alle erzeugten Tracks mit Genre, Titel, Status und Exportverknüpfungen.
+- Filter nach Genre und Status (verfügbar / verkauft / exklusiv gesperrt).
+- **Read-only-Kopplung**: das Modul verändert weder Music Architect noch die DAW.
+
+### Lizenzstufen
+
+| Stufe | Beschreibung |
+|---|---|
+| Preview | MP3-Vorschau, eingeschränkte Nutzung |
+| Streaming | Streaming-Plattformen, kein Sync |
+| Lease | vollständige Nutzung, nicht exklusiv |
+| Exklusiv (Trackout) | exklusive Rechte — Track wird dauerhaft gesperrt |
+
+### Checkout & Zahlung (simuliert)
+1. Lizenz anlegen → Status *offen*, Exklusiv-Sperre greift sofort.
+2. Checkout-Seite bestätigen → Status *bezahlt*.
+3. Stornieren → Track wird wieder freigegeben.
+4. Rechnung mit Netto, USt (Standard 19 %) und Brutto, druckfertig.
+
+---
 
 ## Abo-/Freemium-Modell
 
-Das Modul bildet ein Freemium-Modell ab:
+| Tier | Tageslimit | Monatslimit | Rabatt |
+|---|---|---|---|
+| Free | 3 Tracks | — | — |
+| Subscriber | 10 Tracks | konfigurierbar | 5 % auf Lizenzen |
 
-- **Tages-Bezugslimit**: Pro Tag darf ein Nutzer eine begrenzte Zahl an Tracks
-  *beziehen* — Basis-Nutzer 3, Abonnenten 10 (konfigurierbar). Als Bezug zählen
-  **sowohl Generierungen als auch gekaufte Lizenzen** gegen denselben Tages-Topf;
-  ein Lizenzkauf lässt den Zähler also hochspringen. Ist der Topf leer, werden
-  weitere Generierungen und Käufe abgelehnt. Stornierte Lizenzen geben ihren Bezug
-  wieder frei. Gäste (nicht registriert) unterliegen keinem Limit.
-- **Abo-Rabatt**: registrierte Abonnenten erhalten beim Lizenzkauf automatisch
-  5 % Rabatt (konfigurierbar). Listenpreis, Rabatt und Nettopreis werden getrennt
-  gespeichert, sodass die Wirtschaftlichkeitsrechnung korrekt bleibt.
+- Limit wird **vor** der Generierung geprüft (Gateway-Pattern).
+- Stornierte Lizenzen geben das Kontingent wieder frei.
+- Abo mit wählbarer Laufzeit (1 / 3 / 12 Monate), eigener Checkout-Seite und
+  Laufzeitprüfung bei jedem Request.
 
-### Durchsetzung über den Gateway (kein Eingriff ins Partnerprojekt)
+---
 
-Das Tageslimit wird **vor** der Generierung durchgesetzt. Der Gateway `gateway.py`
-prüft zuerst das Kontingent des Nutzers und ruft **erst dann** Music Architect auf.
-Der Code des Partnerprojekts bleibt dadurch unangetastet — er wird nur als externer
-Prozess gestartet.
+## Wirtschaftlichkeit
 
-- **Simulationsmodus** (Standard): ist kein Befehl hinterlegt, erzeugt der Gateway
-  selbst wasserzeichenmarkierte Demo-MIDIs. So ist der komplette Freemium-Ablauf
-  ohne das echte Programm vorführbar.
-- **Echtbetrieb**: unter *Einstellungen* den Aufrufbefehl setzen, z. B.
-  `python /pfad/music_architect_v7/main.py --count {count}`. Die Platzhalter
-  `{count}` und `{user}` werden ersetzt. Fehlgeschlagene Läufe verbrauchen kein
-  Kontingent.
+Automatische Berechnung aus den Ist-Daten der Datenbank:
 
-CLI-Beispiele:
-```bash
-python gateway.py --user "Abo-Kunde (Demo)" --count 4
-python gateway.py --user 2 --count 5 --simulate
-```
-In der Weboberfläche geht es einfacher: Reiter **Nutzer** → Anzahl wählen → „Erzeugen“,
-danach oben „Scannen“, um die neuen Tracks in den Katalog zu übernehmen.
+- **Umsatz** (Lizenz / Abo / gesamt, nur bezahlte Positionen)
+- **Kosten** (Entwicklungsstunden × Stundensatz + Tooling)
+- **Deckungsbeitrag** = Umsatz − variable Kosten pro Track
+- **Break-even** — wie viele Tracks müssen verkauft werden?
+- **ROI** — Return on Investment in Prozent
+- Alle Parameter konfigurierbar unter *Einstellungen*.
 
-Beim Lizenzverkauf im Track-Detail wählt man den Käufer aus der Nutzerliste; ist es
-ein aktiver Abonnent, wird der Rabatt automatisch abgezogen (Gast = kein Rabatt).
+---
 
-## Abrechnung (simuliert)
+## Audit-Protokoll
 
-Der komplette Zahlungsfluss ist nachgebildet — ohne echten Zahlungsdienstleister und
-ohne echte Kartendaten:
+Jede relevante Aktion (Generierung, Lizenzverkauf, Zahlung, Einstellungsänderung …)
+wird mit Zeitstempel, Ereignistyp und Details protokolliert.
 
-- **Lizenz-Checkout**: Ein Verkauf legt die Lizenz zunächst mit Status *offen* an und
-  reserviert den Track (Exklusiv-Sperre greift sofort). Im Checkout bestätigt man die
-  simulierte Zahlung → Status *bezahlt*, oder man storniert → der Track wird wieder
-  freigegeben. **Nur bezahlte** Positionen zählen als Umsatz.
-- **Abo mit Laufzeit**: Im Reiter *Nutzer* eine Laufzeit (1/3/12 Monate) wählen und
-  „Buchen“ → Checkout → Zahlung bestätigen. Das Abo wird mit Start-/Enddatum aktiv,
-  der Abo-Umsatz wird gebucht, und das höhere Tageslimit sowie der Rabatt gelten nur
-  innerhalb der Laufzeit.
-- **Rechnung/Beleg**: Zu jeder Position gibt es eine Rechnungsansicht mit Netto, USt
-  (Satz konfigurierbar, Standard 19 %) und Brutto, inklusive Druckfunktion.
-- **Umsatz** teilt sich in der Wirtschaftlichkeit in **Lizenz-** und **Abo-Umsatz** auf;
-  offene (unbezahlte) Beträge werden separat ausgewiesen.
+- Einsehbar unter `/audit`.
+- Export als CSV (`/audit.csv`) für die Projektdokumentation.
 
-In einem echten Rollout ersetzt ein Zahlungsdienstleister (z. B. Stripe/Mollie) den
-simulierten Bestätigungsschritt und schaltet per Webhook den Status auf „bezahlt“
-bzw. das Abo bei ausbleibender Zahlung wieder ab — die übrige Logik bleibt gleich.
+---
 
-## Aufbau
+## Authentifizierung & Rollen
 
+- Flask-Login mit server-seitigen Sessions (kein Cookie-Limit).
+- Rollen: **Admin** (voller Zugriff) und **User** (nur Beat-Generierung).
+- Standardmäßig ist ein Admin-Account beim ersten Start anzulegen.
+
+---
+
+## Aufbau — Dateiübersicht
+
+### Anwendungskern
 | Datei | Zweck |
-| ----- | ----- |
-| `app.py` | Flask-Anwendung + Routen |
-| `config.py` | Pfade, Preis-Stufen, Kostenannahmen, Abo-Limits, Abrechnung |
+|---|---|
+| `app.py` | Flask-Einstiegspunkt, Blueprints, Login-Manager |
+| `auth.py` | Login / Logout, User-Modell |
+| `config.py` | Pfade, Preis-Stufen, Limits, Abrechnung |
 | `database.py` | SQLite-Schema, Einstellungen, Audit-Log, Migration |
-| `watermark_reader.py` | liest Layer-1-Wasserzeichen aus `.mid` (mido) |
-| `scanner.py` | scannt Katalog- + Export-Ordner (read-only) |
-| `licensing.py` | Lizenzverkauf mit Exklusiv-Sperre + Abo-Rabatt |
-| `quota.py` | Nutzerverwaltung, Nutzungszählung, Tageslimit |
-| `gateway.py` | Durchsetzungspunkt des Limits vor der Generierung |
+| `rbac.py` | Rollen-Decorator (`@require_admin`) |
+
+### Beat-Generierung & Audio
+| Datei | Zweck |
+|---|---|
+| `generate.py` | Blueprint für /generate, /rerender, /export, /theory_score … |
+| `groove_processor.py` | Mixer-Transformationen auf Noten-Tupeln (Mute, Vol, Swing …) |
+| `groove_bridge.py` | Brücke zu MA V7 `CompositionGroover` (Beat-Raum Groove) |
+| `groove_data.py` | Genre- und Feel-Preset-Daten aus MA V7 (read-only) |
+| `theory_scorer.py` | BDRA-Validierung P1–P5 via MA V7 `bdra_rules` |
+| `sample_upload.py` | Blueprint für Sample-Upload/-Löschung pro Spur |
+| `export_service.py` | WAV / MP3 / FLAC / MIDI Export-Konvertierung |
+| `piano_roll_extractor.py` | Noten-Extraktion für die Piano-Roll-Ansicht |
+| `production_advisor.py` | Mixing-Empfehlungen nach Genre-Produktionsregeln |
+| `synth_core_fix.py` | Kompatibilitäts-Patch für den eingebauten Synthesizer |
+
+### Daten & Presets
+| Datei | Zweck |
+|---|---|
+| `palette_data.py` | Instrument-Paletten aus MA V7 (BDRA-Codes) |
+| `instrument_data.py` | GM-Instrument-Listen pro Spur |
+| `fusion_data.py` | Fusion-Presets (Genre-Kombinationen) |
+| `groove_data.py` | Groove- und Feel-Preset-Bibliothek |
+| `gm_desc_data.py` | GM-Programm-Beschreibungen |
+| `mixer_data.py` | Mixer-Voreinstellungen |
+| `prompt_data.py` | Prompt-Dekodierung (Freitext → Parameter) |
+
+### Katalog & Verwaltung
+| Datei | Zweck |
+|---|---|
+| `scanner.py` | Katalog- und Export-Ordner scannen (read-only) |
+| `licensing.py` | Lizenzverkauf, Exklusiv-Sperre, Abo-Rabatt |
+| `quota.py` | Nutzerverwaltung, Kontingent, Tageslimit |
+| `gateway.py` | Limit-Prüfung vor Generierung (Gateway-Pattern) |
 | `billing.py` | Checkout, Zahlung, Storno, Abo-Laufzeit, Rechnungsdaten |
-| `economics.py` | Umsatz (Lizenz/Abo), Deckungsbeitrag, Break-even, ROI |
-| `demo_data.py` | erzeugt echte Demo-Wasserzeichen |
-| `templates/`, `static/` | Weboberfläche (Dark-Neon, passend zur DAW) |
+| `economics.py` | Umsatz, Deckungsbeitrag, Break-even, ROI |
+| `watermark_reader.py` | Layer-1-Wasserzeichen aus `.mid` auslesen (mido) |
+| `demo_data.py` | Demo-Wasserzeichen und Beispieldaten erzeugen |
+| `stats.py` | Nutzungsstatistiken-Blueprint |
 
-## Bezug zum Abschlussprojekt
+---
 
-- **Funktionsfähig & gekoppelt**: liest die echten Ausgaben beider Programme.
-- **Wirtschaftlicher Aspekt**: Preis-Stufen = Erlösmodell, dazu Break-even/ROI-Rechnung.
-- **Protokoll**: das Audit-Log erfüllt die Protokollpflicht auf Software-Ebene und lässt
-  sich als CSV für die Dokumentation exportieren.
+## Erster Durchlauf (Demo)
 
-## Hinweise
+1. App starten, einloggen.
+2. Auf **Beat generieren** gehen — Genre wählen, „▶ Generieren" klicken.
+3. Beat anhören, Piano Roll ansehen, Theory Score prüfen.
+4. Im **Groove & Mixer**: Feel laden (z. B. „Boom Bap" für Hiphop), Re-Rendern.
+5. Eigenes Sample für eine Spur hochladen → erneut Re-Rendern.
+6. Track im gewünschten Format exportieren.
+7. Im Admin-Bereich: **Demo-Daten erzeugen** → **Scannen** → Katalog ansehen.
+8. Track-Detail öffnen → Lizenz verkaufen → Checkout → Zahlung bestätigen.
+9. **Wirtschaftlichkeit** und **Audit-Protokoll** ansehen.
 
-- Layer-2-Wasserzeichen (Velocity-LSB) wird hier nicht dekodiert — dafür ist die
-  Original-Engine zuständig (`python main.py watermark --extract ...`).
-- Die AI-Nutzung im Gesamtprojekt ist in den READMEs der Sound-Programme offengelegt.
-- Rechtliche Fragen (Schutzfähigkeit AI-generierter Musik) sind ein sinnvoller
-  Risiko-/Rechtsaspekt für die schriftliche Ausarbeitung — bitte eigenständig belastbar
-  recherchieren (dies ist keine Rechtsberatung).
+## Echtbetrieb — Kopplung an eigene Ordner
+
+Unter **Einstellungen**:
+- *Katalog-Ordner*: Pfad zu den watermarked `.mid`-Dateien von Music Architect.
+- *Export-Ordner*: Pfad zu den gemasterten Audiodateien der DAW.
+- *Music Architect Befehl*: z. B. `python /pfad/music_architect_v7/main.py --count {count}`.
+
+Danach **Scannen** — alle vorhandenen Tracks werden in den Katalog übernommen.
+
+---
+
+## Technische Hinweise
+
+- **Groove-Stacking**: Re-Render startet immer von der originalen Komposition —
+  mehrfaches Re-Rendern akkumuliert keine Effekte.
+- **SF2 + Samples**: FluidSynth wird automatisch deaktiviert, sobald Samples
+  zugewiesen sind (FluidSynth unterstützt keine rohen Audiopuffer).
+- **Session-Storage**: Große Audio-Pfade liegen im Dateisystem (Flask-Session),
+  nicht im Cookie — kein 4-KB-Limit.
+- **Layer-2-Wasserzeichen** (Velocity-LSB) wird von diesem Modul nicht dekodiert —
+  dafür ist die Original-Engine zuständig (`python main.py watermark --extract`).
+- **Plattformkompatibilität**: alle Pfad-Operationen via `pathlib`, kein
+  OS-spezifischer Code.

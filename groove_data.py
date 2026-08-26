@@ -89,3 +89,69 @@ def get_all_presets() -> Dict[str, Dict[str, Dict[str, Any]]]:
         if preset:
             result[genre] = preset
     return result
+
+
+# ---------------------------------------------------------------------------
+# Benannte Feels (Named Presets) pro Genre
+# ---------------------------------------------------------------------------
+
+def _settings_zu_dict(settings: Any) -> Dict[str, Any]:
+    """Konvertiert ein TrackGrooveSettings-Objekt in ein JSON-serialisierbares Dict."""
+    return {
+        "gain_db":         settings.gain_db,
+        "pan":             settings.pan,
+        "swing_pct":       settings.swing_pct,
+        "timing_nudge_ms": settings.timing_nudge_ms,
+        "vel_min":         settings.vel_min,
+        "vel_max":         settings.vel_max,
+        "vel_curve":       settings.vel_curve,
+    }
+
+
+def get_named_presets_map() -> Dict[str, List[str]]:
+    """
+    Gibt alle verfuegbaren Feel-Namen pro Genre zurueck.
+
+    Rueckgabewert
+    -------------
+    { genre: ["Boom Bap", "Lo-Fi Chill", "Modern Rap", ...], ... }
+
+    Genres ohne benannte Presets sind nicht enthalten.
+    Gibt ein leeres Dict zurueck, wenn die Bibliothek nicht verfuegbar ist.
+    """
+    try:
+        _ensure_ma_path()
+        from midi.groove_presets import NamedGroovePresetLibrary  # type: ignore
+        lib = NamedGroovePresetLibrary()
+        return {genre: lib.genre_names(genre) for genre in lib.all_genres()}
+    except Exception:
+        return {}
+
+
+def get_named_groove_preset(genre: str, preset_name: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Gibt die benannte Groove-Voreinstellung (Feel) fuer ein Genre zurueck.
+
+    Die Basis-Genre-Werte werden mit den preset-spezifischen Ueberschreibungen
+    zusammengefuehrt — identisch zur Logik in NamedGroovePresetLibrary.get_named().
+
+    Rueckgabewert
+    -------------
+    { track_key: { gain_db, pan, swing_pct, timing_nudge_ms, vel_min, vel_max, vel_curve } }
+
+    Gibt ein leeres Dict zurueck, wenn Genre oder Preset nicht gefunden wird.
+    """
+    try:
+        _ensure_ma_path()
+        from midi.groove_presets import NamedGroovePresetLibrary  # type: ignore
+        lib      = NamedGroovePresetLibrary()
+        song_cfg = lib.get_named(genre, preset_name)
+        if song_cfg is None:
+            return {}
+
+        return {
+            track_key: _settings_zu_dict(settings)
+            for track_key, settings in song_cfg.tracks.items()
+        }
+    except Exception:
+        return {}

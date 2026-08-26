@@ -118,6 +118,32 @@ def apply_vel_jitter(notes: List[_Note], jitter: int, rng: random.Random) -> Lis
     ]
 
 
+def apply_velocity_curve(notes: List[_Note], curve: str, total_beats: float) -> List[_Note]:
+    """
+    Formt die Velocity-Kurve ueber die gesamte Timeline.
+    flat       = keine Aenderung
+    accent     = Downbeats (jede gerade Zaehlung) betont (+15%), Off-Beats gedaempft (-15%)
+    crescendo  = linear ansteigend von 70% auf 100%
+    diminuendo = linear absteigend von 100% auf 70%
+    """
+    if curve == "flat" or not notes or total_beats <= 0.0:
+        return notes
+    result: List[_Note] = []
+    for t, d, p, v in notes:
+        progress = min(1.0, t / total_beats)
+        if curve == "crescendo":
+            factor = 0.70 + 0.30 * progress
+        elif curve == "diminuendo":
+            factor = 1.00 - 0.30 * progress
+        elif curve == "accent":
+            beat_pos = t % 2.0
+            factor = 1.15 if beat_pos < 0.5 else 0.85
+        else:
+            factor = 1.0
+        result.append((t, d, p, max(1, min(127, int(v * factor)))))
+    return result
+
+
 def apply_time_jitter(notes: List[_Note], jitter_ms: float, bpm: float,
                       rng: random.Random) -> List[_Note]:
     """Streut Timing zufaellig um ±jitter_ms (in ms)."""
@@ -193,6 +219,12 @@ def apply_groove_to_composition(
         vel_max = int(params.get("vel_max", 127))
         if vel_min != 1 or vel_max != 127:
             notes = apply_velocity_range(notes, vel_min, vel_max)
+
+        # Velocity-Kurve (accent / crescendo / diminuendo)
+        curve = params.get("curve", "flat")
+        if curve and curve != "flat":
+            total_beats = float(composition.get("total_bars", 8)) * 4
+            notes = apply_velocity_curve(notes, curve, total_beats)
 
         # Volume (dB)
         vol_db = float(params.get("volume_db", 0.0))

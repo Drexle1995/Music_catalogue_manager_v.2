@@ -31,6 +31,7 @@ import theory_scorer as _theory_scorer
 import sample_upload as _sample_upload
 import gm_desc_data
 import groove_data
+import groove_bridge as _groove_bridge
 import groove_processor
 import instrument_data as _instr_data
 import piano_roll_extractor
@@ -251,8 +252,9 @@ def generate_page():
         _fusion_presets      = _FUSION_PRESETS,
         _fusion_genres       = fusion_data.AVAILABLE_GENRES,
         _gm_descs_json       = _json.dumps(gm_descs),
-        _groove_genres_json  = _json.dumps(groove_data.AVAILABLE_GENRES),
-        _gm_bdra_codes_json  = _json.dumps(gm_bdra_codes),
+        _groove_genres_json        = _json.dumps(groove_data.AVAILABLE_GENRES),
+        _groove_named_presets_json = _json.dumps(groove_data.get_named_presets_map()),
+        _gm_bdra_codes_json        = _json.dumps(gm_bdra_codes),
     )
 
 
@@ -544,6 +546,9 @@ def generate_track():
     session[f"temp_{audio_uuid}"]        = str(wav_path)
     session[f"temp_genre_{audio_uuid}"]  = genre
     session[f"temp_dir_{audio_uuid}"]    = str(tmp_dir)
+    # Urspruengliche (unbearbeitete) Komposition fuer Groove-Stacking-Schutz speichern.
+    # In /rerender wird immer diese Version als Ausgangspunkt geladen — niemals ueberschrieben.
+    session[f"original_composition_{audio_uuid}"] = json.dumps(_comp_dict, ensure_ascii=False)
 
     # Vocal-Version ebenfalls in Session speichern, falls vorhanden.
     # origin_uuid verknuepft Vocal-Export mit dem Haupt-Kontingent-Gate.
@@ -782,6 +787,17 @@ def groove_preset_route(genre: str):
     return jsonify(preset)
 
 
+@generate_bp.route("/groove_preset/<genre>/<path:preset_name>")
+@login_required
+def groove_named_preset_route(genre: str, preset_name: str):
+    """
+    Gibt einen benannten Groove-Feel fuer ein Genre zurueck (z.B. 'Boom Bap').
+    Basis-Genre-Werte werden mit den Feel-Ueberschreibungen zusammengefuehrt.
+    """
+    preset = groove_data.get_named_groove_preset(genre, preset_name)
+    return jsonify(preset)
+
+
 @generate_bp.route("/advisor_data/<genre>")
 @login_required
 def advisor_data_route(genre: str):
@@ -870,9 +886,11 @@ def rerender_track():
       }
     }
     """
-    data         = request.get_json(silent=True) or {}
-    audio_uuid   = (data.get("uuid") or "").strip()
-    track_params = data.get("track_params", {})
+    data               = request.get_json(silent=True) or {}
+    audio_uuid         = (data.get("uuid") or "").strip()
+    track_params       = data.get("track_params", {})
+    # Optionale Timbre-Parameter: {role: {param: value, ...}, ...}
+    raw_instr_params   = data.get("instrument_params", {})
 
     if not audio_uuid:
         return jsonify({"error": "missing_uuid"}), 400
@@ -901,9 +919,9 @@ def rerender_track():
             pass
 
     try:
-        comp_data   = json.loads(comp_path.read_text(encoding="utf-8"))
-        composition = comp_data["composition"]
-        bpm_val     = float(comp_data.get("bpm", 120.0))
+        # Metadaten (BPM, Genre) immer aus composition.json lesen.
+        comp_data = json.loads(comp_path.read_text(encoding="utf-8"))
+        bpm_val   = float(comp_data.get("bpm", 120.0))
 
         # Genre-Standard SF2 als Fallback wenn kein SF2 explizit ausgewaehlt.
         if not sf2_path:
@@ -914,8 +932,42 @@ def rerender_track():
             except Exception:
                 pass
 
-        modified = groove_processor.apply_groove_to_composition(
-            composition, track_params, bpm_val)
+        # Urspruengliche (unbearbeitete) Komposition aus der Session laden,
+        # um Groove-Stacking bei wiederholtem Re-Render zu verhindern.
+        # Fallback-Kette: original_composition_{uuid} → origin_uuid-Kette → composition.json.
+        _orig_json = session.get(f"original_composition_{audio_uuid}")
+        if not _orig_json:
+            # Re-Render-UUIDs verweisen ueber origin_uuid auf den Original-Beat.
+            _origin_uuid = session.get(f"origin_uuid_{audio_uuid}")
+            if _origin_uuid:
+                _orig_json = session.get(f"original_composition_{_origin_uuid}")
+        composition = json.loads(_orig_json) if _orig_json else comp_data["composition"]
+
+        # --- Schritt 1: Mixer-Only via groove_processor (Mute, Lautstaerke, Instrument) ---
+        # Timing- und Velocity-Groove-Parameter werden neutralisiert, damit
+        # CompositionGroover sie im naechsten Schritt sauber anwenden kann.
+        _mixer_params = _groove_bridge.build_mixer_only_params(track_params)
+        modified      = groove_processor.apply_groove_to_composition(
+            composition, _mixer_params, bpm_val)
+
+        # --- Schritt 2: Timing/Velocity-Groove via MA V7 CompositionGroover ---
+        # Swing, Nudge, Velocity-Humanisierung und Akkord-Kurven werden im Beat-Raum
+        # (nicht Tick-Raum) angewendet. Bei Fehler: Fallback auf groove_processor.
+        try:
+            _ensure_ma_path()
+            _song_groove = _groove_bridge.build_song_groove_settings(
+                track_params, genre=comp_data.get("genre"))
+            if _song_groove is not None:
+                _grooved = _groove_bridge.apply_composition_groover(modified, _song_groove)
+                if _grooved is not None:
+                    modified = _grooved
+        except Exception as _cge:
+            current_app.logger.warning(
+                "CompositionGroover-Schritt fehlgeschlagen, Fallback auf groove_processor: %s",
+                _cge)
+            # Fallback: groove_processor mit allen Parametern auf der Ursprungskomposition.
+            modified = groove_processor.apply_groove_to_composition(
+                composition, track_params, bpm_val)
 
         _ensure_ma_path()
         from rendering.wav_renderer import WAVRenderer
@@ -946,12 +998,27 @@ def rerender_track():
             except Exception as _sf2e:
                 current_app.logger.warning("SF2-Rendering fehlgeschlagen, Fallback: %s", _sf2e)
 
+        # Timbre-Dicts in Synthesizer-Objekte umwandeln (nur fuer Builtin-Renderer).
+        instr_params_obj: dict = {}
+        if raw_instr_params:
+            try:
+                from rendering.timbre_presets import dict_to_params as _dtp
+                for _role, _role_dict in raw_instr_params.items():
+                    if isinstance(_role_dict, dict) and _role_dict:
+                        _p = _dtp(_role, _role_dict)
+                        if _p is not None:
+                            instr_params_obj[_role] = _p
+            except Exception as _te:
+                current_app.logger.warning(
+                    "Timbre-Parameter Konvertierungsfehler: %s", _te)
+
         if not rendered_with_sf2:
             renderer = WAVRenderer()
             # sample_assignments=None wenn kein Sample zugewiesen (kein Overhead).
             renderer.render_composition_to_wav(
                 modified, str(rr_path),
                 sample_assignments=ma_samples or None,
+                instrument_params=instr_params_obj or None,
             )
 
         rr_uuid = str(uuid.uuid4())
@@ -959,7 +1026,8 @@ def rerender_track():
         session[f"temp_genre_{rr_uuid}"]  = comp_data.get("genre", "beat")
         # origin_uuid verknuepft Re-Render-Export mit dem Haupt-Kontingent-Gate.
         session[f"origin_uuid_{rr_uuid}"] = audio_uuid
-        return jsonify({"audio_url": f"/temp_audio/{rr_uuid}", "uuid": rr_uuid})
+        # rerender_url statt audio_url: das Frontend haelt den Original-URL unveraendert.
+        return jsonify({"rerender_url": f"/temp_audio/{rr_uuid}", "uuid": rr_uuid})
 
     except Exception as exc:
         current_app.logger.error("Re-Rendering fehlgeschlagen: %s", exc)
@@ -1245,3 +1313,51 @@ def quota():
         "monthly_remaining": monthly_rem,
         "tier":              current_user.tier,
     })
+
+
+@generate_bp.route("/timbre_presets/<role>")
+@login_required
+def timbre_presets_route(role: str):
+    """
+    Gibt die Preset-Liste und Schieberegler-Vorgabewerte fuer eine Instrument-Rolle zurueck.
+    role ∈ {kick, snare, hihat, melodic}
+
+    Antwort-JSON:
+    {
+      "presets":  ["(none)", "Punchy", ...],
+      "defaults": {"pitch_end_hz": 45.0, ...}
+    }
+    """
+    _ensure_ma_path()
+    try:
+        from rendering.timbre_presets import list_presets, PRESET_DEFAULTS
+        presets  = ['(none)'] + list_presets(role)
+        defaults = PRESET_DEFAULTS.get(role, {})
+        return jsonify({'presets': presets, 'defaults': defaults})
+    except Exception as exc:
+        current_app.logger.error("Timbre-Presets Ladefehler (%s): %s", role, exc)
+        return jsonify({'presets': ['(none)'], 'defaults': {}})
+
+
+@generate_bp.route("/timbre_preset_params/<role>/<preset_name>")
+@login_required
+def timbre_preset_params_route(role: str, preset_name: str):
+    """
+    Gibt den vollstaendigen Parameter-Dict fuer ein einzelnes Preset zurueck.
+    Ermoeglicht dem Frontend, Schieberegler bei Preset-Wechsel zu befuellen,
+    ohne einen erneuten Re-Render auszuloesen.
+
+    Antwort-JSON: { param_name: value, ... }
+    """
+    _ensure_ma_path()
+    try:
+        from rendering.timbre_presets import get_preset
+        from dataclasses import asdict
+        preset = get_preset(role, preset_name)
+        if preset is None:
+            return jsonify({}), 404
+        return jsonify(asdict(preset))
+    except Exception as exc:
+        current_app.logger.error(
+            "Timbre-Preset-Parameter Ladefehler (%s/%s): %s", role, preset_name, exc)
+        return jsonify({}), 500

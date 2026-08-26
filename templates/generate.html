@@ -238,8 +238,9 @@
     <!-- ─── Tab: Vorschau & Speichern ─── -->
     <div class="tab-pane tab-active" id="tab-preview">
       <div id="playerWrap" hidden>
+        <!-- Original-Beat-Spieler — wird nach der Generierung gesetzt und nie ueberschrieben -->
         <div class="audio-section">
-          <p class="audio-label">Full Beat</p>
+          <p class="audio-label">&#9654; ORIGINAL BEAT</p>
           <audio id="audioPlayer" style="display:none"></audio>
           <div class="wave-player">
             <canvas id="playerWaveCanvas" class="wave-player-canvas"></canvas>
@@ -249,6 +250,23 @@
             </div>
           </div>
         </div>
+        <!-- Groove-Re-Render-Spieler — nur nach erfolgreichem Re-Render sichtbar -->
+        <div id="rerenderSection" class="audio-section" hidden>
+          <p class="audio-label">&#9836; GROOVE RE-RENDER</p>
+          <audio id="rerenderAudioPlayer" style="display:none"></audio>
+          <div class="wave-player">
+            <canvas id="rerenderWaveCanvas" class="wave-player-canvas"></canvas>
+            <div class="wave-player-controls">
+              <button class="wave-player-btn" id="btnRerenderPlay" title="Abspielen / Anhalten" onclick="playerToggleRerender()">&#9654;</button>
+              <span class="wave-player-time" id="rerenderTimeDisplay">0:00 / 0:00</span>
+            </div>
+          </div>
+          <div class="rerender-player-actions">
+            <button class="btn btn-ghost btn-sm" onclick="openExportModalForRerender()">&#8659; Diesen Re-Render exportieren</button>
+            <button class="btn btn-ghost btn-sm" onclick="useRerenderedAsMain()">&#8617; Als Hauptversion verwenden</button>
+          </div>
+        </div>
+        <!-- Vocal-Beat-Spieler — nur bei Generierungsmodus 'vocal_ready' oder 'both' sichtbar -->
         <div id="vocalSection" class="audio-section" hidden>
           <p class="audio-label">Vocal-Ready Beat</p>
           <audio id="audioPlayerVocal" style="display:none"></audio>
@@ -354,7 +372,7 @@
       <div id="advisorWrap" hidden>
 
         <!-- Palette & Prompt-Analyse -->
-        <details class="adv-section" open>
+        <details class="adv-section">
           <summary>Palette &amp; Prompt-Analyse</summary>
           <div class="adv-body">
             <div id="advPromptTable" class="adv-kv-table"></div>
@@ -536,17 +554,192 @@
 
             <!-- Sample-Zuweisung pro Track -->
             <details class="groove-sub-section" id="samplePanel">
-              <summary>Samples (eigene Audio-Dateien pro Track)</summary>
+              <summary title="Assign an audio file to each instrument track. When assigned, the sample replaces the built-in synthesiser for that track.">Samples (eigene Audio-Dateien pro Track)</summary>
               <div class="sample-rows" id="sampleRows"></div>
+            </details>
+
+            <!-- Timbre-Editor: Per-Instrument-Klangsynthese -->
+            <details class="groove-sub-section" id="timbrePanel">
+              <summary title="Per-instrument synthesis preset and parameter editor. Select a preset to load starting values, then fine-tune with the sliders.">&#9835; TIMBRE &#8212; Klangsynthese</summary>
+              <div class="timbre-content">
+
+                <!-- KICK -->
+                <div class="timbre-role-block">
+                  <div class="timbre-role-hdr timbre-kick-hdr">KICK</div>
+                  <div class="timbre-preset-row">
+                    <span class="timbre-preset-lbl">Preset</span>
+                    <select id="timbre_kick_preset" class="gen-select gen-select-sm"
+                            title="Select a synthesis preset for KICK. Choose (none) to use the built-in default synthesis for this role."
+                            onchange="onTimbrePresetChange('kick')">
+                      <option value="(none)">(none)</option>
+                    </select>
+                  </div>
+                  <label class="groove-param-lbl">Pitch Ende (Hz)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_kick_pitch_end_hz"
+                             min="20" max="200" step="1" value="45"
+                             title="Target frequency the kick pitch glides to (sine tail). Lower = deeper 808 sub-kick."
+                             oninput="$('timbre_kick_pitch_end_hz_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_kick_pitch_end_hz_val">45</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Rauschanteil
+                    <div class="slider-row">
+                      <input type="range" id="timbre_kick_noise_amount"
+                             min="0" max="1" step="0.01" value="0.05"
+                             title="Transient noise burst level. 0 = pure sine/808. Higher = punchier attack click."
+                             oninput="$('timbre_kick_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_kick_noise_amount_val">0.05</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Ausklingen (ms)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_kick_decay_ms"
+                             min="50" max="1000" step="10" value="280"
+                             title="Kick envelope decay time. 50 ms = tight / punchy. 800 ms = long boomy tail."
+                             oninput="$('timbre_kick_decay_ms_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_kick_decay_ms_val">280</span>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- SNARE -->
+                <div class="timbre-role-block">
+                  <div class="timbre-role-hdr timbre-snare-hdr">SNARE</div>
+                  <div class="timbre-preset-row">
+                    <span class="timbre-preset-lbl">Preset</span>
+                    <select id="timbre_snare_preset" class="gen-select gen-select-sm"
+                            title="Select a synthesis preset for SNARE. Choose (none) to use the built-in default synthesis for this role."
+                            onchange="onTimbrePresetChange('snare')">
+                      <option value="(none)">(none)</option>
+                    </select>
+                  </div>
+                  <label class="groove-param-lbl">Pitch (Hz)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_snare_pitch_end_hz"
+                             min="80" max="400" step="1" value="140"
+                             title="Semitone offset for the snare body pitch. Negative = deeper, positive = snappier."
+                             oninput="$('timbre_snare_pitch_end_hz_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_snare_pitch_end_hz_val">140</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Rauschanteil
+                    <div class="slider-row">
+                      <input type="range" id="timbre_snare_noise_amount"
+                             min="0" max="1" step="0.01" value="0.6"
+                             title="Noise-to-body mix. 0 = pure tone (tom-like). 1 = all noise (brushed snare)."
+                             oninput="$('timbre_snare_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_snare_noise_amount_val">0.60</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Ausklingen (ms)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_snare_decay_ms"
+                             min="30" max="400" step="5" value="150"
+                             title="Snare envelope decay time."
+                             oninput="$('timbre_snare_decay_ms_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_snare_decay_ms_val">150</span>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- HI-HAT -->
+                <div class="timbre-role-block">
+                  <div class="timbre-role-hdr timbre-hihat-hdr">HI-HAT</div>
+                  <div class="timbre-preset-row">
+                    <span class="timbre-preset-lbl">Preset</span>
+                    <select id="timbre_hihat_preset" class="gen-select gen-select-sm"
+                            title="Select a synthesis preset for HI-HAT. Choose (none) to use the built-in default synthesis for this role."
+                            onchange="onTimbrePresetChange('hihat')">
+                      <option value="(none)">(none)</option>
+                    </select>
+                  </div>
+                  <label class="groove-param-lbl">Ausklingen (ms)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_hihat_decay_ms"
+                             min="10" max="400" step="5" value="60"
+                             title="Hi-hat decay. Short = closed hat (tight). Long = open hat (sizzle)."
+                             oninput="$('timbre_hihat_decay_ms_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_hihat_decay_ms_val">60</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Rauschanteil
+                    <div class="slider-row">
+                      <input type="range" id="timbre_hihat_noise_amount"
+                             min="0" max="1" step="0.01" value="0.95"
+                             title="High-frequency content. 0 = dark closed hat. 1 = bright, cutting open hat."
+                             oninput="$('timbre_hihat_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_hihat_noise_amount_val">0.95</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">S&#228;ttigung
+                    <div class="slider-row">
+                      <input type="range" id="timbre_hihat_drive"
+                             min="0" max="1" step="0.01" value="0"
+                             title="Soft-clip saturation drive. 0 = clean. 1 = warm harmonic distortion."
+                             oninput="$('timbre_hihat_drive_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_hihat_drive_val">0.00</span>
+                    </div>
+                  </label>
+                </div>
+
+                <!-- MELODIC -->
+                <div class="timbre-role-block" style="border-bottom:none;margin-bottom:0;">
+                  <div class="timbre-role-hdr timbre-melodic-hdr">MELODIC</div>
+                  <div class="timbre-preset-row">
+                    <span class="timbre-preset-lbl">Preset</span>
+                    <select id="timbre_melodic_preset" class="gen-select gen-select-sm"
+                            title="Select a synthesis preset for MELODIC. Choose (none) to use the built-in default synthesis for this role."
+                            onchange="onTimbrePresetChange('melodic')">
+                      <option value="(none)">(none)</option>
+                    </select>
+                  </div>
+                  <label class="groove-param-lbl">Anschlag (ms)
+                    <div class="slider-row">
+                      <input type="range" id="timbre_melodic_attack_ms"
+                             min="1" max="500" step="1" value="15"
+                             title="Attack time for melodic voices. 1 ms = pluck / stab. 200 ms = slow pad swell."
+                             oninput="$('timbre_melodic_attack_ms_val').textContent=this.value">
+                      <span class="slider-val" id="timbre_melodic_attack_ms_val">15</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">Helligkeit
+                    <div class="slider-row">
+                      <input type="range" id="timbre_melodic_brightness"
+                             min="0" max="1" step="0.01" value="0.5"
+                             title="Low-pass filter cutoff brightness. 0 = dark/muffled. 1 = bright/open."
+                             oninput="$('timbre_melodic_brightness_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_melodic_brightness_val">0.50</span>
+                    </div>
+                  </label>
+                  <label class="groove-param-lbl">S&#228;ttigung
+                    <div class="slider-row">
+                      <input type="range" id="timbre_melodic_drive"
+                             min="0" max="1" step="0.01" value="0.05"
+                             title="Soft-clip saturation drive. 0 = clean. 1 = warm harmonic distortion."
+                             oninput="$('timbre_melodic_drive_val').textContent=parseFloat(this.value).toFixed(2)">
+                      <span class="slider-val" id="timbre_melodic_drive_val">0.05</span>
+                    </div>
+                  </label>
+                </div>
+
+              </div>
             </details>
 
             <!-- Mixer fuer Re-Render -->
             <div class="groove-section-hdr">MIXER</div>
-            <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;">
-              <select id="grooveGenreSelect" class="gen-select" style="width:auto;font-size:.72rem;">
+            <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;flex-wrap:wrap;">
+              <!-- Genre-Auswahl: beeinflusst welche Feels angeboten werden -->
+              <select id="grooveGenreSelect" class="gen-select" style="width:auto;font-size:.72rem;"
+                      onchange="onGrooveGenreChange(this.value)">
                 {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
                   <option value="{{ g }}">{{ g|capitalize }}</option>
                 {% endfor %}
+              </select>
+              <!-- Feel-Auswahl: wird per JS aus GROOVE_NAMED_PRESETS befuellt -->
+              <select id="grooveFeelSelect" class="gen-select" style="width:auto;font-size:.72rem;"
+                      title="Benanntes Feel-Preset fuer das gewaehlte Genre laden">
+                <option value="">— Feel —</option>
               </select>
               <button type="button" class="groove-btn" id="btnLoadGroove">Preset laden</button>
               <button type="button" class="groove-btn" id="btnResetGroove">Zur&#252;cksetzen</button>
@@ -653,7 +846,9 @@
 <!-- GM-Beschreibungen und Groove-Genres als JS-Daten -->
 <script>
 const GM_DESCS      = {{ _gm_descs_json | safe }};
-const GROOVE_GENRES = {{ _groove_genres_json | safe }};
+const GROOVE_GENRES        = {{ _groove_genres_json | safe }};
+// Benannte Feel-Presets pro Genre: { genre: ["Boom Bap", "Lo-Fi Chill", ...] }
+const GROOVE_NAMED_PRESETS = {{ _groove_named_presets_json | safe }};
 // Vollstaendige GM-Programmnummer → BDRA-Code Zuordnung (alle Genres, alle Paletten).
 // Struktur: { spur_key: { gm_nummer: bdra_code } }
 const GM_BDRA_CODES = {{ _gm_bdra_codes_json | safe }};
@@ -876,6 +1071,7 @@ body  { overflow:hidden; }
 .wave-player-btn:hover { background:rgba(124,109,234,0.28); box-shadow:0 0 10px rgba(124,109,234,0.35); }
 .wave-player-time { font-size:.67rem; color:var(--tx3); font-family:var(--mono); }
 .save-form { margin-top:.6rem; }
+.rerender-player-actions { display:flex; gap:.5rem; margin-top:.4rem; flex-wrap:wrap; }
 
 /* ── Ausgabe-Tab ─────────────────────────────────────────────────── */
 .out-header { padding:.5rem 0 .4rem; }
@@ -1015,6 +1211,16 @@ body  { overflow:hidden; }
 .sample-btn.clear { color:#e05050; border-color:rgba(224,80,80,.25); }
 .sample-btn.clear:hover { background:rgba(224,80,80,.12); }
 .sample-progress { height:2px; background:rgba(255,255,255,0.08); border-radius:1px; margin-top:2px; display:none; }
+/* ── Timbre-Editor ───────────────────────────────────────────────── */
+.timbre-content { display:flex; flex-direction:column; gap:0; padding:.35rem .55rem .2rem; }
+.timbre-role-block { border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:.35rem; margin-bottom:.35rem; }
+.timbre-role-hdr { font-size:.65rem; font-weight:700; letter-spacing:.1em; font-family:var(--mono); margin-bottom:.22rem; text-transform:uppercase; }
+.timbre-kick-hdr    { color:var(--yellow,#c89a38); }
+.timbre-snare-hdr   { color:var(--orange,#d47840); }
+.timbre-hihat-hdr   { color:var(--tx1,#e4e4f0); }
+.timbre-melodic-hdr { color:var(--cyan,#5ba3d0); }
+.timbre-preset-row  { display:flex; align-items:center; gap:.4rem; margin-bottom:.25rem; }
+.timbre-preset-lbl  { font-size:.66rem; color:var(--tx3); font-family:var(--mono); width:40px; flex-shrink:0; }
 .sample-progress-fill { height:100%; background:#50e0a0; border-radius:1px; width:0; transition:width .15s; }
 
 .groove-rows { display:flex; flex-direction:column; gap:.1rem; margin-bottom:.35rem; }
@@ -1170,6 +1376,8 @@ const G = {
   currentUuid:         null,
   vocalUuid:           null,
   rerenderUuid:        null,
+  originalAudioUrl:    null,   // einmalig gesetzt bei Generierung, nie durch Re-Render ueberschrieben
+  rerenderUrl:         null,   // URL des letzten Groove-Re-Renders
   pianoRollData:       null,
   pianoRollVis:        {},
   waveZoom:            1.0,
@@ -1294,6 +1502,18 @@ function onSuccess(data) {
   G.currentUuid=data.uuid; G.vocalUuid=data.vocal_uuid;
   G.pianoRollData=data.piano_roll; G.lastData=data;
 
+  // Original-URL einfrieren — wird nie durch einen Re-Render ueberschrieben
+  G.originalAudioUrl = data.audio_url;
+  G.rerenderUrl      = null;
+  G.rerenderUuid     = null;
+  // Re-Render-Spieler zuruecksetzen und verstecken
+  const rrs = $('rerenderSection'); if (rrs) rrs.hidden = true;
+  const rrap = $('rerenderAudioPlayer'); if (rrap) { rrap.src=''; rrap.load(); }
+  const rrwr = $('grooveRerenderedWrap'); if (rrwr) rrwr.hidden = true;
+
+  // Timbre-Schieberegler nach jeder Neu-Generierung zuruecksetzen
+  resetAllTimbreSliders();
+
   // Vorschau-Tab — Waveform-Spieler laden
   WellenformSpieler.load('audioPlayer', 'playerWaveCanvas', data.audio_url);
   const vs=$('vocalSection');
@@ -1406,8 +1626,9 @@ const WellenformSpieler = {
     return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
   },
 
-  // URL laden, Audio dekodieren und Wellenform zeichnen
-  async load(playerId, canvasId, url) {
+  // URL laden, Audio dekodieren und Wellenform zeichnen.
+  // timeId: optionale ID des Zeitanzeigefelds (Fallback: Zuordnung per playerId)
+  async load(playerId, canvasId, url, timeId) {
     const audio = $(playerId);
     if (!audio) return;
     audio.src = url; audio.load();
@@ -1417,7 +1638,10 @@ const WellenformSpieler = {
       const decoded = await G.audioCtx.decodeAudioData(ab);
       this._buffers[playerId] = decoded;
       this.draw(canvasId, decoded, 0);
-      const tId = playerId === 'audioPlayer' ? 'playerTimeDisplay' : 'playerTimeDisplayVocal';
+      const tId = timeId
+        || (playerId === 'audioPlayer'         ? 'playerTimeDisplay'
+          : playerId === 'rerenderAudioPlayer' ? 'rerenderTimeDisplay'
+          :                                      'playerTimeDisplayVocal');
       const t = $(tId); if (t) t.textContent = `0:00 / ${this._fmt(decoded.duration)}`;
     } catch(e) { console.warn('Waveform-Spieler Ladefehler:', e); }
   },
@@ -1500,6 +1724,19 @@ function playerTogglePlayVocal() {
   } else {
     audio.pause();
     const b = $('btnPlayerPlayVocal'); if (b) b.textContent = '▶';
+  }
+}
+
+// Re-Render-Spieler im Vorschau-Tab abspielen / anhalten
+function playerToggleRerender() {
+  const audio = $('rerenderAudioPlayer');
+  if (!audio || !audio.src) return;
+  if (audio.paused) {
+    audio.play().catch(()=>{});
+    const b = $('btnRerenderPlay'); if (b) b.textContent = '■';
+  } else {
+    audio.pause();
+    const b = $('btnRerenderPlay'); if (b) b.textContent = '▶';
   }
 }
 
@@ -1762,6 +1999,8 @@ function buildGrooveMixer(genre, adv) {
   buildGrooveInstrRows();
 
   const gs = $('grooveGenreSelect'); if(gs) gs.value = genre;
+  // Feel-Dropdown nach Genre-Sync aktualisieren.
+  onGrooveGenreChange(genre);
 
   // Humanize-Slider live-Update
   bindSlider('gp_swing',     'gp_swingVal',    v=>parseFloat(v).toFixed(1)+' %');
@@ -2108,50 +2347,88 @@ async function applyGrooveAndRerender() {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-      uuid:        G.currentUuid,
+      uuid:              G.currentUuid,
       track_params,
-      sf2_key:     $('sf2PresetSelect')?.value || null,
-      sf2_uuid:    G.sf2Uuid || null,
+      instrument_params: collectTimbreParams(),
+      sf2_key:           $('sf2PresetSelect')?.value || null,
+      sf2_uuid:          G.sf2Uuid || null,
     }),
     });
     const data=await res.json();
     if(data.error){alert('Re-Render-Fehler: '+data.error);return;}
-    // Re-Render-Audio anzeigen
-    const ap=$('grooveAudioPlayer'); if(ap){ap.src=data.audio_url;ap.load();}
-    const dl=$('grooveDownloadLink'); if(dl)dl.href=data.audio_url;
+    const rrUrl = data.rerender_url;
+    G.rerenderUuid = data.uuid;
+    G.rerenderUrl  = rrUrl;
+    // Advisor-Tab: Mini-Spieler im Groove-Panel aktualisieren
+    const ap=$('grooveAudioPlayer'); if(ap){ap.src=rrUrl;ap.load();}
     const wr=$('grooveRerenderedWrap'); if(wr)wr.hidden=false;
-    G.rerenderUuid=data.uuid;
+    // Vorschau-Tab: Re-Render-Spieler laden und einblenden
+    WellenformSpieler.load('rerenderAudioPlayer','rerenderWaveCanvas',rrUrl,'rerenderTimeDisplay');
+    const rrs=$('rerenderSection'); if(rrs) rrs.hidden=false;
   } catch(e){alert('Netzwerkfehler: '+e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent='▶ GROOVE ANWENDEN & NEU RENDERN';}}
 }
 
 function useRerenderedAsMain() {
   if(!G.rerenderUuid) return;
-  // Neu gerendertes Audio im Waveform-Spieler des Vorschau-Tabs laden
-  WellenformSpieler.load('audioPlayer', 'playerWaveCanvas', `/temp_audio/${G.rerenderUuid}`);
+  // Nur den Export-Zeiger aktualisieren — der Original-Spieler bleibt unveraendert
   G.currentUuid=G.rerenderUuid;
 }
 
+// Genre-Wechsel: Feel-Dropdown mit den verfuegbaren Feels fuer das neue Genre befuellen.
+// GROOVE_NAMED_PRESETS enthaelt alle benannten Presets (aus groove_data.py vorgeladen).
+function onGrooveGenreChange(genre) {
+  const feelSel = $('grooveFeelSelect');
+  if (!feelSel) return;
+
+  // Aktuelle Auswahl merken, damit sie nach Neubefuellung erhalten bleibt.
+  const vorherigerFeel = feelSel.value;
+
+  // Dropdown leeren und Platzhalter-Option setzen.
+  feelSel.innerHTML = '<option value="">— Feel —</option>';
+
+  // Feels fuer das neue Genre einhaengen (alphabetisch, wie vom Server geliefert).
+  const feels = GROOVE_NAMED_PRESETS[genre] || [];
+  feels.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value       = name;
+    opt.textContent = name;
+    feelSel.appendChild(opt);
+  });
+
+  // Vorherige Auswahl wiederherstellen wenn sie im neuen Genre noch verfuegbar ist.
+  if (feels.includes(vorherigerFeel)) {
+    feelSel.value = vorherigerFeel;
+  }
+}
+
 async function loadGroovePreset() {
-  const genre=$('grooveGenreSelect')?.value||'pop';
+  const genre = $('grooveGenreSelect')?.value || 'pop';
+  const feel  = $('grooveFeelSelect')?.value  || '';
+
+  // URL: benanntes Feel-Preset wenn ausgewaehlt, sonst Basis-Genre-Preset.
+  const url = feel
+    ? '/groove_preset/' + encodeURIComponent(genre) + '/' + encodeURIComponent(feel)
+    : '/groove_preset/' + encodeURIComponent(genre);
+
   try {
-    const res=await fetch('/groove_preset/'+genre);
-    const data=await res.json();
-    GROOVE_TRACKS.forEach(({key})=>{
-      const ps=data[key]; if(!ps) return;
-      G.grooveState[key].gain_db  = ps.gain_db??0;
-      G.grooveState[key].pan      = ps.pan??0;
-      G.grooveState[key].swing_pct= ps.swing_pct!=null?ps.swing_pct:50;
-      G.grooveState[key].nudge_ms = ps.timing_nudge_ms??0;
-      G.grooveState[key].vel_min  = ps.vel_min??1;
-      G.grooveState[key].vel_max  = ps.vel_max??127;
-      onGrooveVol(key, ps.gain_db??0);
-      const sv=$('gsvol_'+key); if(sv)sv.value=ps.gain_db??0;
-      const mv=$('gvol_'+key);  if(mv)mv.value=ps.gain_db??0;
-      onGroovePan(key, ps.pan??0);
-      const mp=$('gpansl_'+key); if(mp)mp.value=ps.pan??0;
+    const res  = await fetch(url);
+    const data = await res.json();
+    GROOVE_TRACKS.forEach(({key}) => {
+      const ps = data[key]; if (!ps) return;
+      G.grooveState[key].gain_db   = ps.gain_db   ?? 0;
+      G.grooveState[key].pan       = ps.pan        ?? 0;
+      G.grooveState[key].swing_pct = ps.swing_pct  != null ? ps.swing_pct : 50;
+      G.grooveState[key].nudge_ms  = ps.timing_nudge_ms ?? 0;
+      G.grooveState[key].vel_min   = ps.vel_min    ?? 1;
+      G.grooveState[key].vel_max   = ps.vel_max    ?? 127;
+      onGrooveVol(key, ps.gain_db ?? 0);
+      const sv = $('gsvol_' + key); if (sv) sv.value = ps.gain_db ?? 0;
+      const mv = $('gvol_'  + key); if (mv) mv.value = ps.gain_db ?? 0;
+      onGroovePan(key, ps.pan ?? 0);
+      const mp = $('gpansl_' + key); if (mp) mp.value = ps.pan ?? 0;
     });
-  } catch(e){console.warn('Groove-Preset Ladefehler:',e);}
+  } catch (e) { console.warn('Groove-Preset Ladefehler:', e); }
 }
 
 function resetGrooveMixer() {
@@ -2215,13 +2492,13 @@ function buildSamplePanel() {
       <span class="sample-lbl">${label}</span>
       <span class="sample-badge" id="sbadge_${key}" title="">—</span>
       <button class="sample-btn" onclick="triggerSampleUpload('${key}')"
-              title="Audio-Datei auswaehlen (.wav .aiff .flac .ogg .mp3)">&#128193;</button>
+              title="Open a file picker to assign a sample to ${label}. Supported: WAV, AIFF, FLAC, OGG, MP3 · Max 20 MB.">&#128193;</button>
       <button class="sample-btn" id="sprev_${key}"
               onclick="playSamplePreview('${key}')"
-              title="Vorschau abspielen" disabled>&#9654;</button>
+              title="Preview the assigned sample. Enabled only when a file is assigned." disabled>&#9654;</button>
       <button class="sample-btn clear" id="sclear_${key}"
               onclick="clearSampleAssignment('${key}')"
-              title="Zuweisung entfernen" disabled>&#10005;</button>
+              title="Remove the sample assignment for ${label}." disabled>&#10005;</button>
       <input type="file" id="sfile_${key}" accept=".wav,.aif,.aiff,.flac,.ogg,.mp3"
              style="display:none" onchange="onSampleFileSelect('${key}', this)">
     </div>
@@ -2635,9 +2912,152 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
   }
 
+  // Re-Render-Spieler: Fortschritts-Updates, Track-Ende und Klick-Seek
+  const _rrap = $('rerenderAudioPlayer');
+  if (_rrap) {
+    _rrap.addEventListener('timeupdate', ()=>WellenformSpieler.update('rerenderAudioPlayer','rerenderWaveCanvas','rerenderTimeDisplay'));
+    _rrap.addEventListener('ended', ()=>WellenformSpieler.resetBtn('btnRerenderPlay'));
+  }
+  const _rrwc = $('rerenderWaveCanvas');
+  if (_rrwc) {
+    _rrwc.addEventListener('click', (e) => {
+      const rect = _rrwc.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const audio = $('rerenderAudioPlayer');
+      if (audio && audio.duration) {
+        audio.currentTime = frac * audio.duration;
+        if (audio.paused) { audio.play().catch(()=>{}); const b=$('btnRerenderPlay'); if(b)b.textContent='■'; }
+      }
+    });
+  }
+
+  // Feel-Dropdown fuer das beim Start gewaehlte Genre befuellen.
+  onGrooveGenreChange($('grooveGenreSelect')?.value || 'trap');
+
   // Verfuegbare Soundfonts laden
   loadAvailableSoundfonts();
+
+  // Timbre-Presets laden und Schieberegler-Vorgaben setzen
+  loadAllTimbrePresets();
 });
+
+// ══════════════════════════════════════════════════════════════════
+// Timbre-Editor
+// ══════════════════════════════════════════════════════════════════
+
+// Schieberegler-Konfiguration pro Rolle (param, Anzeigefeld-ID, Formattyp)
+const TIMBRE_SLIDER_SPECS = {
+  kick:    [
+    {param:'pitch_end_hz', valId:'timbre_kick_pitch_end_hz_val',  fmt:'int'},
+    {param:'noise_amount', valId:'timbre_kick_noise_amount_val',  fmt:'float2'},
+    {param:'decay_ms',     valId:'timbre_kick_decay_ms_val',      fmt:'int'},
+  ],
+  snare:   [
+    {param:'pitch_end_hz', valId:'timbre_snare_pitch_end_hz_val', fmt:'int'},
+    {param:'noise_amount', valId:'timbre_snare_noise_amount_val', fmt:'float2'},
+    {param:'decay_ms',     valId:'timbre_snare_decay_ms_val',     fmt:'int'},
+  ],
+  hihat:   [
+    {param:'decay_ms',     valId:'timbre_hihat_decay_ms_val',     fmt:'int'},
+    {param:'noise_amount', valId:'timbre_hihat_noise_amount_val', fmt:'float2'},
+    {param:'drive',        valId:'timbre_hihat_drive_val',        fmt:'float2'},
+  ],
+  melodic: [
+    {param:'attack_ms',    valId:'timbre_melodic_attack_ms_val',  fmt:'int'},
+    {param:'brightness',   valId:'timbre_melodic_brightness_val', fmt:'float2'},
+    {param:'drive',        valId:'timbre_melodic_drive_val',      fmt:'float2'},
+  ],
+};
+
+// Wert fuer das Schieberegler-Anzeigefeld formatieren
+function formatTimbreVal(fmt, val) {
+  if (fmt === 'float2') return parseFloat(val).toFixed(2);
+  return String(Math.round(Number(val)));
+}
+
+// Schieberegler einer Rolle auf die uebergebenen Parameterwerte setzen
+function applyTimbreValues(role, params) {
+  const specs = TIMBRE_SLIDER_SPECS[role] || [];
+  specs.forEach(({param, valId, fmt}) => {
+    const val = params[param];
+    if (val === undefined || val === null) return;
+    const sl = $(`timbre_${role}_${param}`);
+    const vl = $(valId);
+    if (sl) sl.value = val;
+    if (vl) vl.textContent = formatTimbreVal(fmt, val);
+  });
+}
+
+// Alle Preset-Selects befuellen und Standardwerte setzen (beim Seitenaufruf)
+async function loadAllTimbrePresets() {
+  const roles = ['kick', 'snare', 'hihat', 'melodic'];
+  await Promise.all(roles.map(async role => {
+    try {
+      const res  = await fetch(`/timbre_presets/${role}`);
+      const data = await res.json();
+      const sel  = $(`timbre_${role}_preset`);
+      if (!sel) return;
+      // Optionen befuellen
+      sel.innerHTML = '';
+      (data.presets || ['(none)']).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        sel.appendChild(opt);
+      });
+      sel.value = '(none)';
+      // Vorgabewerte in Schieberegler schreiben
+      if (data.defaults) applyTimbreValues(role, data.defaults);
+    } catch(e) {
+      console.warn(`Timbre-Presets fuer ${role} konnten nicht geladen werden:`, e);
+    }
+  }));
+}
+
+// Schieberegler einer Rolle nach Preset-Auswahl aktualisieren
+async function onTimbrePresetChange(role) {
+  const preset = $(`timbre_${role}_preset`)?.value;
+  if (!preset || preset === '(none)') return;
+  try {
+    const res = await fetch(`/timbre_preset_params/${role}/${encodeURIComponent(preset)}`);
+    if (!res.ok) return;
+    const params = await res.json();
+    applyTimbreValues(role, params);
+  } catch(e) {
+    console.warn(`Timbre-Preset Ladefehler (${role}/${preset}):`, e);
+  }
+}
+
+// Alle Timbre-Schieberegler auf Standardwerte zuruecksetzen (nach neuer Generierung)
+function resetAllTimbreSliders() {
+  const defaults = {
+    kick:    {pitch_end_hz:45,  noise_amount:0.05, decay_ms:280},
+    snare:   {pitch_end_hz:140, noise_amount:0.60, decay_ms:150},
+    hihat:   {decay_ms:60,  noise_amount:0.95, drive:0},
+    melodic: {attack_ms:15, brightness:0.5,    drive:0.05},
+  };
+  ['kick','snare','hihat','melodic'].forEach(role => {
+    const sel = $(`timbre_${role}_preset`);
+    if (sel) sel.value = '(none)';
+    applyTimbreValues(role, defaults[role]);
+  });
+}
+
+// Aktuelle Schieberegler-Werte als instrument_params-Dict zusammenstellen.
+// Nur Rollen mit einem ausgewaehlten Preset werden beruecksichtigt.
+function collectTimbreParams() {
+  const params = {};
+  ['kick','snare','hihat','melodic'].forEach(role => {
+    const preset = $(`timbre_${role}_preset`)?.value;
+    if (!preset || preset === '(none)') return;
+    const roleParams = {};
+    (TIMBRE_SLIDER_SPECS[role] || []).forEach(({param}) => {
+      const sl = $(`timbre_${role}_${param}`);
+      if (sl) roleParams[param] = parseFloat(sl.value);
+    });
+    if (Object.keys(roleParams).length > 0) params[role] = roleParams;
+  });
+  return params;
+}
 
 // ══════════════════════════════════════════════════════════════════
 // Export-Modal
@@ -2719,9 +3139,8 @@ function updateExportSrcButtons() {
   const vc = $('exportSrcVocal');
   if (rr) rr.disabled = !G.rerenderUuid;
   if (vc) vc.disabled = !G.vocalUuid;
-  // Quelle auf 'rerender' vorwaehlen wenn vorhanden
-  if (G.rerenderUuid) setExportSrc('rerender');
-  else setExportSrc('main');
+  // Standardmaessig Original-Beat exportieren; Re-Render nur auf expliziten Wunsch
+  setExportSrc('main');
 }
 
 function _exportUuid() {
