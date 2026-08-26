@@ -28,6 +28,7 @@ import export_service
 import fusion_data
 import palette_data as _palette_data
 import theory_scorer as _theory_scorer
+import sample_upload as _sample_upload
 import gm_desc_data
 import groove_data
 import groove_processor
@@ -922,9 +923,18 @@ def rerender_track():
         rr_dir  = pathlib.Path(tempfile.mkdtemp())
         rr_path = rr_dir / "rerendered.wav"
 
-        # SF2 gewuenscht und vorhanden: MIDI-Zwischendatei → FluidSynth-Render
+        # Sample-Zuweisungen aus der Session lesen (Web-Keys → MA-V7-Keys umwandeln).
+        # resolve_sample_assignments folgt der origin_uuid-Kette fuer Re-Render-UUIDs.
+        web_samples = _sample_upload.resolve_sample_assignments(audio_uuid)
+        ma_samples  = _sample_upload.zu_ma_assignments(web_samples) if web_samples else {}
+
+        # FluidSynth/SF2 wird uebersprungen wenn Samples zugewiesen sind,
+        # da FluidSynth keine rohen Audiopuffer verarbeiten kann.
+        sf2_erlaubt = bool(sf2_path) and not bool(ma_samples)
+
+        # SF2 gewuenscht und vorhanden (und kein Sample-Override): FluidSynth-Render
         rendered_with_sf2 = False
-        if sf2_path and pathlib.Path(sf2_path).exists():
+        if sf2_erlaubt and pathlib.Path(sf2_path).exists():
             try:
                 midi_bytes  = export_service.export_midi(modified, bpm_val)
                 midi_tmp    = rr_dir / "render.mid"
@@ -938,7 +948,11 @@ def rerender_track():
 
         if not rendered_with_sf2:
             renderer = WAVRenderer()
-            renderer.render_composition_to_wav(modified, str(rr_path))
+            # sample_assignments=None wenn kein Sample zugewiesen (kein Overhead).
+            renderer.render_composition_to_wav(
+                modified, str(rr_path),
+                sample_assignments=ma_samples or None,
+            )
 
         rr_uuid = str(uuid.uuid4())
         session[f"temp_{rr_uuid}"]        = str(rr_path)

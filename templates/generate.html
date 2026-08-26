@@ -534,6 +534,12 @@
               <div id="grooveInstrRows" class="groove-instr-rows"></div>
             </details>
 
+            <!-- Sample-Zuweisung pro Track -->
+            <details class="groove-sub-section" id="samplePanel">
+              <summary>Samples (eigene Audio-Dateien pro Track)</summary>
+              <div class="sample-rows" id="sampleRows"></div>
+            </details>
+
             <!-- Mixer fuer Re-Render -->
             <div class="groove-section-hdr">MIXER</div>
             <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;">
@@ -995,6 +1001,21 @@ body  { overflow:hidden; }
 .groove-instr-rows { display:flex; flex-direction:column; gap:.25rem; padding:.4rem .6rem; }
 .groove-instr-row { display:grid; grid-template-columns:70px 1fr; align-items:center; gap:.4rem; font-size:.7rem; }
 .groove-instr-lbl { color:var(--tx3); font-family:var(--mono); text-transform:uppercase; font-size:.64rem; font-weight:700; letter-spacing:.05em; }
+/* Sample-Panel */
+.sample-rows { display:flex; flex-direction:column; gap:.22rem; padding:.4rem .6rem; }
+.sample-row { display:grid; grid-template-columns:62px 1fr auto auto auto; align-items:center; gap:.35rem; }
+.sample-lbl { color:var(--tx3); font-family:var(--mono); font-size:.63rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.sample-badge { font-family:var(--mono); font-size:.62rem; color:var(--tx3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; cursor:default; }
+.sample-badge.loaded { color:#50e0a0; }
+.sample-btn { border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04);
+  color:var(--tx2); border-radius:3px; padding:.15rem .42rem; font-size:.62rem; font-family:var(--mono);
+  cursor:pointer; white-space:nowrap; transition:background .12s,color .12s; }
+.sample-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
+.sample-btn:disabled { opacity:.35; cursor:default; }
+.sample-btn.clear { color:#e05050; border-color:rgba(224,80,80,.25); }
+.sample-btn.clear:hover { background:rgba(224,80,80,.12); }
+.sample-progress { height:2px; background:rgba(255,255,255,0.08); border-radius:1px; margin-top:2px; display:none; }
+.sample-progress-fill { height:100%; background:#50e0a0; border-radius:1px; width:0; transition:width .15s; }
 
 .groove-rows { display:flex; flex-direction:column; gap:.1rem; margin-bottom:.35rem; }
 .groove-row { display:grid; grid-template-columns:72px 50px 1fr 40px 60px 26px 26px; align-items:center; gap:.3rem; font-size:.7rem; padding:.18rem 0; border-bottom:1px solid rgba(255,255,255,0.04); }
@@ -1678,6 +1699,10 @@ function buildAdvisor(data) {
 
   // Groove & Mixer — mit Genre-Preset befuellen
   buildGrooveMixer(meta.genre||'pop', adv);
+  // Sample-Panel aufbauen (Zuweisungen bei neuem Beat zuruecksetzen)
+  G.sampleAssignments = {};
+  G.sampleFiles       = {};
+  buildSamplePanel();
   // Paletten- und FX-Daten fuer das generierte Genre laden
   loadPaletteData(meta.genre||'pop');
 }
@@ -2142,6 +2167,197 @@ function resetGrooveMixer() {
     [$('gmute_'+key),$('gmute2_'+key)].forEach(b=>b?.classList.remove('active'));
     [$('gsolobtn_'+key),$('gsolo2_'+key)].forEach(b=>b?.classList.remove('active'));
   });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Sample-Zuweisung pro Track
+// ══════════════════════════════════════════════════════════════════
+
+// Alle zehn Tracks mit Builder-Key, Anzeige-Label und is_drum-Flag.
+// is_drum=true: Wiedergabe auf Root-Pitch fixiert (MIDI-Note codiert Klang, nicht Tonhoehe).
+const SAMPLE_TRACKS = [
+  {key:'drums',       label:'KICK',    isDrum:true},
+  {key:'percussion',  label:'PERC',    isDrum:true},
+  {key:'bass',        label:'BASS',    isDrum:false},
+  {key:'lead',        label:'LEAD',    isDrum:false},
+  {key:'chords',      label:'CHORDS',  isDrum:false},
+  {key:'pad',         label:'PAD',     isDrum:false},
+  {key:'arp',         label:'ARP',     isDrum:false},
+  {key:'stabs',       label:'STABS',   isDrum:false},
+  {key:'texture',     label:'TEXTURE', isDrum:false},
+  {key:'fx',          label:'FX',      isDrum:false},
+];
+
+// Erlaubte Dateiendungen (Whitelist, clientseitig).
+const SAMPLE_ERLAUBTE_ENDUNGEN = new Set(['.wav','.aif','.aiff','.flac','.ogg','.mp3']);
+
+// Laufzeit-Zustand: {key → {filename, sizeKb}} — spiegelt den Server-Zustand.
+G.sampleAssignments = G.sampleAssignments || {};
+// Lokale File-Objekte fuer Web-Audio-Vorschau: {key → File}
+G.sampleFiles       = G.sampleFiles       || {};
+// Web-Audio-Kontext (einmalig anlegen, lazy).
+G._audioCtx         = null;
+
+function _getAudioCtx() {
+  if (!G._audioCtx) {
+    G._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return G._audioCtx;
+}
+
+// Sample-Panel aufbauen (wird nach Beat-Generierung aufgerufen).
+function buildSamplePanel() {
+  const cont = $('sampleRows');
+  if (!cont) return;
+
+  cont.innerHTML = SAMPLE_TRACKS.map(({key, label, isDrum}) => `
+    <div class="sample-row" id="srow_${key}">
+      <span class="sample-lbl">${label}</span>
+      <span class="sample-badge" id="sbadge_${key}" title="">—</span>
+      <button class="sample-btn" onclick="triggerSampleUpload('${key}')"
+              title="Audio-Datei auswaehlen (.wav .aiff .flac .ogg .mp3)">&#128193;</button>
+      <button class="sample-btn" id="sprev_${key}"
+              onclick="playSamplePreview('${key}')"
+              title="Vorschau abspielen" disabled>&#9654;</button>
+      <button class="sample-btn clear" id="sclear_${key}"
+              onclick="clearSampleAssignment('${key}')"
+              title="Zuweisung entfernen" disabled>&#10005;</button>
+      <input type="file" id="sfile_${key}" accept=".wav,.aif,.aiff,.flac,.ogg,.mp3"
+             style="display:none" onchange="onSampleFileSelect('${key}', this)">
+    </div>
+    <div class="sample-progress" id="sprog_${key}">
+      <div class="sample-progress-fill" id="sprogfill_${key}"></div>
+    </div>
+  `).join('');
+
+  // Bestehende Zuweisungen (z.B. nach Seiten-Reload innerhalb der Session) anzeigen.
+  Object.entries(G.sampleAssignments).forEach(([key, info]) => _updateSampleRow(key, info));
+}
+
+// Datei-Dialog oeffnen fuer einen Track.
+function triggerSampleUpload(key) {
+  if (!G.currentUuid) { alert('Zuerst einen Beat generieren.'); return; }
+  $('sfile_' + key)?.click();
+}
+
+// Datei ausgewaehlt → Endung pruefen → hochladen.
+async function onSampleFileSelect(key, inputEl) {
+  const datei = inputEl.files?.[0];
+  if (!datei) return;
+
+  const ext = '.' + datei.name.split('.').pop().toLowerCase();
+  if (!SAMPLE_ERLAUBTE_ENDUNGEN.has(ext)) {
+    alert(`Format '${ext}' nicht unterstuetzt.\nErlaubt: ${[...SAMPLE_ERLAUBTE_ENDUNGEN].join('  ')}`);
+    inputEl.value = '';
+    return;
+  }
+
+  // File-Objekt fuer lokale Vorschau speichern (kein Server-Round-Trip noetig).
+  G.sampleFiles[key] = datei;
+
+  // Fortschrittsbalken anzeigen.
+  const prog     = $('sprog_' + key);
+  const progFill = $('sprogfill_' + key);
+  if (prog) prog.style.display = 'block';
+  if (progFill) progFill.style.width = '0%';
+
+  // Upload-Fortschritt ueber XMLHttpRequest (fetch unterstuetzt kein Upload-Progress).
+  try {
+    const sizeKb = await _uploadSample(key, datei, pct => {
+      if (progFill) progFill.style.width = pct + '%';
+    });
+    G.sampleAssignments[key] = {filename: datei.name, sizeKb};
+    _updateSampleRow(key, G.sampleAssignments[key]);
+  } catch (err) {
+    alert('Upload fehlgeschlagen: ' + err.message);
+    G.sampleFiles[key] = null;
+  } finally {
+    if (prog) prog.style.display = 'none';
+    inputEl.value = '';  // Input zuruecksetzen fuer erneuten Upload derselben Datei.
+  }
+}
+
+// XHR-Upload mit Progress-Callback. Gibt aufgeloestes Promise mit sizeKb zurueck.
+function _uploadSample(key, datei, onProgress) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('audio_uuid',  G.currentUuid);
+    form.append('builder_key', key);
+    form.append('audio',       datei, datei.name);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/sample_upload');
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        try {
+          const r = JSON.parse(xhr.responseText);
+          if (r.ok) resolve(Math.round(r.size_bytes / 1024));
+          else reject(new Error(r.error || 'Server-Fehler'));
+        } catch { reject(new Error('Ungueltige Server-Antwort')); }
+      } else {
+        reject(new Error(`HTTP ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Netzwerkfehler'));
+    xhr.send(form);
+  });
+}
+
+// Sample-Zeile aktualisieren (Badge, Buttons).
+function _updateSampleRow(key, info) {
+  const badge = $('sbadge_' + key);
+  const prev  = $('sprev_'  + key);
+  const clear = $('sclear_' + key);
+  if (!badge) return;
+  if (info) {
+    const name = (info.filename || '').length > 24
+      ? info.filename.slice(0,11) + '…' + info.filename.slice(-10)
+      : (info.filename || '');
+    badge.textContent = name + (info.sizeKb ? `  (${info.sizeKb} kB)` : '');
+    badge.title       = info.filename || '';
+    badge.classList.add('loaded');
+    if (prev)  prev.disabled  = false;
+    if (clear) clear.disabled = false;
+  } else {
+    badge.textContent = '—';
+    badge.title       = '';
+    badge.classList.remove('loaded');
+    if (prev)  prev.disabled  = true;
+    if (clear) clear.disabled = true;
+  }
+}
+
+// Web-Audio-API-Vorschau: Datei direkt clientseitig abspielen.
+async function playSamplePreview(key) {
+  const datei = G.sampleFiles[key];
+  if (!datei) { alert('Kein Sample-File im Speicher. Bitte Seite nicht neu laden.'); return; }
+  try {
+    const ctx    = _getAudioCtx();
+    const puffer = await datei.arrayBuffer();
+    const audio  = await ctx.decodeAudioData(puffer);
+    const quelle = ctx.createBufferSource();
+    quelle.buffer = audio;
+    quelle.connect(ctx.destination);
+    quelle.start(0);
+  } catch (err) {
+    alert('Vorschau fehlgeschlagen: ' + err.message);
+  }
+}
+
+// Sample-Zuweisung loeschen — serverseitig und lokal.
+async function clearSampleAssignment(key) {
+  if (!G.currentUuid) return;
+  try {
+    await fetch(`/sample_upload/${G.currentUuid}/${key}`, {method: 'DELETE'});
+  } catch { /* Fehler ignorieren — lokal trotzdem bereinigen */ }
+  delete G.sampleAssignments[key];
+  delete G.sampleFiles[key];
+  _updateSampleRow(key, null);
 }
 
 // ══════════════════════════════════════════════════════════════════

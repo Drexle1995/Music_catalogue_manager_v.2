@@ -30,6 +30,7 @@ from demo_data import generate as generate_demo
 from auth import auth_bp, User
 from generate import generate_bp
 from rbac import require_admin
+from sample_upload import sample_upload_bp
 from stats import stats_bp
 
 app = Flask(__name__)
@@ -64,6 +65,7 @@ def load_user(user_id):
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(generate_bp)
+app.register_blueprint(sample_upload_bp)
 app.register_blueprint(stats_bp)
 
 # Datenbank beim Import initialisieren (idempotent).
