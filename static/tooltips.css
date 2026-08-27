@@ -1,0 +1,107 @@
+/*
+ * tooltips.css — Hover-Hilfetext-System (data-tooltip-Attribut).
+ *
+ * Verwendung: data-tooltip="Hilfetext" an <button>, <label>, <span> oder <div>.
+ * Fuer Pflichtformular-Elemente (input, select, textarea) immer an das
+ * umschliessende <label> oder einen <span class="tt-wrap"> setzen, da
+ * ersetzte Elemente keine ::after-Pseudoelemente unterstuetzen.
+ *
+ * Architektur: Die Tooltip-Blase (#tt-blase) wird NICHT als CSS-Pseudoelement
+ * realisiert, sondern als ein einziges position:fixed DOM-Element das tooltips.js
+ * einmalig an <body> anhaengt. Das ist notwendig damit overflow:scroll-Container
+ * (z.B. die scrollbare Sidebar) den Tooltip nicht abschneiden koennen.
+ * tooltips.js steuert: Sichtbarkeit, Positionierung und Randkorrektur.
+ */
+
+/* position:relative bleibt als Layout-Anker fuer andere Positionierungen. */
+[data-tooltip] {
+  position: relative;
+}
+
+/* ── Wrapper-Hilfsklasse fuer ersetzte Elemente (select, input) ──────── */
+/* Verwendung: <span class="tt-wrap" data-tooltip="..."><select ...></span> */
+.tt-wrap {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle;
+}
+
+/* ── Tooltip-Blase (position:fixed, einmalig an <body> angehaengt) ────── */
+#tt-blase {
+  position: fixed;
+  display: none;
+  z-index: 9999;
+
+  /* Neon-Dark-Theme passend zur App */
+  background: #0e0e22;
+  color: #d0d8f0;
+  border: 1px solid #4a4aaa;
+  border-radius: 5px;
+  padding: 7px 11px;
+
+  font-size: 0.69rem;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  line-height: 1.55;
+  white-space: pre-line;   /* \n in data-tooltip-Werten als Zeilenumbruch */
+  max-width: 290px;
+  text-align: left;
+
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
+}
+
+/* ── Pfeil-Dreieck (zeigt auf das Ausloeser-Element) ─────────────────── */
+#tt-blase::before {
+  content: '';
+  position: absolute;
+  /* --tt-pfeil-links wird von tooltips.js gesetzt damit der Pfeil auch
+     nach horizontaler Verschiebung auf die Element-Mitte zeigt. */
+  left: var(--tt-pfeil-links, 50%);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  pointer-events: none;
+}
+
+/* Tooltip ist oberhalb des Elements: Pfeil zeigt nach unten (Dreieck ▼) */
+#tt-blase:not(.tt-unten)::before {
+  bottom: -10px;
+  border-top-color: #4a4aaa;
+}
+
+/* Tooltip ist unterhalb des Elements: Pfeil zeigt nach oben (Dreieck ▲) */
+#tt-blase.tt-unten::before {
+  top: -10px;
+  border-bottom-color: #4a4aaa;
+}
+
+/* ── Tooltips ausblenden wenn Nutzer sie deaktiviert hat ─────────────── */
+body.tooltips-hidden #tt-blase {
+  display: none !important;
+}
+
+/* ── Toggle-Button im Topbar ─────────────────────────────────────────── */
+#btnTooltipToggle {
+  font-size: 0.71rem;
+  padding: 0.18rem 0.65rem;
+  border: 1px solid #3a3060;
+  border-radius: 4px;
+  background: #1e1e2e;
+  color: #7c6dea;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+#btnTooltipToggle:hover {
+  background: #2a2040;
+  color: #b0a0ff;
+  border-color: #7c6dea;
+}
+
+#btnTooltipToggle.tt-an {
+  background: #1a1040;
+  border-color: #7c6dea;
+  color: #c0b0ff;
+}

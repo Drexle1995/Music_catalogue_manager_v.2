@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Katalog & Lizenzen{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tooltips.css') }}">
 </head>
 <body>
   <header class="topbar">
@@ -46,6 +47,10 @@
     </nav>
 
     <div style="display:flex;align-items:center;gap:.8rem;">
+      <!-- Tooltip-Toggle: fuer alle eingeloggten Nutzer sichtbar -->
+      {% if current_user.is_authenticated %}
+        <button id="btnTooltipToggle" type="button">? Hilfe AN</button>
+      {% endif %}
       {% if current_user.is_authenticated %}
         <span style="font-size:.78rem;color:#888;">{{ current_user.email }}</span>
         {% if current_user.is_admin %}
@@ -81,5 +86,6 @@
   <footer class="footer">
     Ergänzungsmodul zum Gesamtpaket · koppelt read-only an Music Architect V7 &amp; SBS-Synth Master
   </footer>
+  <script src="{{ url_for('static', filename='tooltips.js') }}"></script>
 </body>
 </html>

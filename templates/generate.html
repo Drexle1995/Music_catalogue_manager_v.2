@@ -26,8 +26,10 @@
     <details class="param-section" open>
       <summary>Prompt-Eingabe</summary>
       <div class="section-body">
-        <textarea id="promptText" rows="2" placeholder="z. B. &quot;Bright POP Song&quot; oder &quot;fast dark trap beat&quot;" class="gen-textarea"></textarea>
-        <button type="button" class="btn btn-ghost btn-sm" id="btnDecode">&#9675; Erkennen</button>
+        <textarea id="promptText" rows="2" placeholder="z. B. &quot;Bright POP Song&quot; oder &quot;fast dark trap beat&quot;" class="gen-textarea"
+                  data-tooltip="Beschreibe deinen Beat auf Englisch oder Deutsch.&#10;Beispiel: &quot;dark trap beat 140 BPM&quot;&#10;Das System erkennt Genre, BPM und Stimmung automatisch."></textarea>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnDecode"
+                data-tooltip="Analysiert den Prompt und fuellt Genre, BPM und andere Parameter automatisch aus.">&#9675; Erkennen</button>
         <div id="promptResult" class="prompt-result" hidden></div>
       </div>
     </details>
@@ -36,23 +38,23 @@
     <details class="param-section" open>
       <summary>Basis-Parameter</summary>
       <div class="section-body">
-        <label class="field-label">Genre
-          <select id="genre" class="gen-select">
+        <label class="field-label" data-tooltip="Waehle das musikalische Genre.&#10;Bestimmt Rhythmus-Pattern, Instrumente und Klangcharakter.">Genre
+          <select id="genre" class="gen-select" onchange="onGrooveGenreChange(this.value)">
             {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
               <option value="{{ g }}">{{ g|capitalize }}</option>
             {% endfor %}
           </select>
         </label>
-        <label class="field-label">BPM
+        <label class="field-label" data-tooltip="Beats pro Minute — Tempo des Beats.&#10;Leer lassen = automatisch aus dem Genre bestimmt.&#10;Typisch: Trap 130-160, House 120-130, Techno 130-150.">BPM
           <input type="number" id="bpm" min="40" max="220" step="1" placeholder="auto" class="gen-input">
         </label>
-        <label class="field-label">Komplexitaet (1-10)
+        <label class="field-label" data-tooltip="Wie komplex soll der Beat sein?&#10;1 = minimalistisch (wenige Noten, einfache Pattern)&#10;10 = sehr dicht (viele Noten, komplexe Strukturen)&#10;Empfehlung fuer Einsteiger: 4-6">Komplexitaet (1-10)
           <div class="slider-row">
             <input type="range" id="complexity" min="1" max="10" value="5">
             <span class="slider-val" id="complexityVal">5</span>
           </div>
         </label>
-        <label class="field-label">Seed (optional)
+        <label class="field-label" data-tooltip="Zufallszahl fuer reproduzierbare Ergebnisse.&#10;Gleicher Seed + gleiche Parameter = gleicher Beat.&#10;Leer lassen fuer einen zufaelligen Seed.">Seed (optional)
           <input type="number" id="seed" placeholder="zufaellig" class="gen-input">
         </label>
       </div>
@@ -63,7 +65,7 @@
       <summary>Tonart &amp; Struktur</summary>
       <div class="section-body">
         <div class="two-col">
-          <label class="field-label">Ton
+          <label class="field-label" data-tooltip="Grundton der Melodie und Akkorde.&#10;C = hell und neutral, A-Moll = melancholisch.&#10;&quot;auto&quot; = vom System bestimmt.">Ton
             <select id="keyNote" class="gen-select">
               <option value="">auto</option>
               {% for n in ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"] %}
@@ -71,7 +73,7 @@
               {% endfor %}
             </select>
           </label>
-          <label class="field-label">Tonleiter
+          <label class="field-label" data-tooltip="Tonleiter bestimmt den emotionalen Charakter.&#10;Major = froehlich · Minor = melancholisch&#10;Dorian = jazzig · Phrygian = spanisch/dunkel&#10;Pentatonik = eingaengige Melodien.">Tonleiter
             <select id="keyScale" class="gen-select">
               <option value="">auto</option>
               {% for s in ["major","minor","dorian","mixolydian","phrygian","lydian",
@@ -82,7 +84,7 @@
             </select>
           </label>
         </div>
-        <label class="field-label">Dauer (Takte, 0 = auto)
+        <label class="field-label" data-tooltip="Laenge des Beats in Takten (Bars).&#10;0 = automatisch (Genre-abhaengig, meist 8-16 Takte).&#10;1 Takt = 4 Viertelschlaege bei 4/4-Takt.">Dauer (Takte, 0 = auto)
           <input type="number" id="durationBars" min="0" max="128" value="0" class="gen-input">
         </label>
       </div>
@@ -92,16 +94,16 @@
     <details class="param-section">
       <summary>Klang &amp; Ausdruck</summary>
       <div class="section-body">
-        <label class="field-label">Humanisierung
+        <label class="field-label" data-tooltip="Macht Noten lebendig durch zufaellige Timing- und Lautstaerkeschwankungen.&#10;0 = Maschinen-perfekt (quantisiert)&#10;0.6 = natuerlich gespielt&#10;1 = stark unpraeziese (Jazz/Live-Feeling)">Humanisierung
           <div class="slider-row"><input type="range" id="humanize" min="0" max="1" step="0.05" value="0.6"><span class="slider-val" id="humanizeVal">0.60</span></div>
         </label>
-        <label class="field-label">Mutation
+        <label class="field-label" data-tooltip="Zufaellige Abweichungen in der Akkord-Progression und Melodie.&#10;0 = vorhersehbar und strukturiert&#10;0.5 = gelegentliche Variationen&#10;1 = stark variierendes Arrangement">Mutation
           <div class="slider-row"><input type="range" id="mutation" min="0" max="1" step="0.05" value="0"><span class="slider-val" id="mutationVal">0.00</span></div>
         </label>
-        <label class="field-label">Spannung
+        <label class="field-label" data-tooltip="Emotionale Spannung durch dissonante Akkorde und Noten.&#10;0 = harmonisch und entspannt&#10;0.7 = dramatisch&#10;1.5 = sehr dissonant / experimentell">Spannung
           <div class="slider-row"><input type="range" id="tension" min="0" max="1.5" step="0.05" value="0"><span class="slider-val" id="tensionVal">0.00</span></div>
         </label>
-        <label class="field-label">FX-Kette
+        <label class="field-label" data-tooltip="Klangfaerbung durch Effektketten.&#10;Bright = klar, knackig, hochfrequent betont&#10;Neutral = ausgewogen, ohne Faerbung&#10;Dark = dumpf, druckig, tieffrequent betont">FX-Kette
           <div class="fx-chips" id="fxVariant" data-value="neutral">
             <button type="button" class="chip" data-v="bright">Bright</button>
             <button type="button" class="chip chip-active" data-v="neutral">Neutral</button>
@@ -115,7 +117,8 @@
     <details class="param-section">
       <summary>Generierungsmodus</summary>
       <div class="section-body">
-        <div class="mode-chips" id="genMode" data-value="full">
+        <div class="mode-chips" id="genMode" data-value="full"
+             data-tooltip="Full Beat = vollstaendiger Beat mit allen Spuren&#10;Vocal-Ready = ohne Lead/Pad/Arp — Platz fuer Gesang&#10;Beide = zwei separate Dateien werden generiert">
           <button type="button" class="chip chip-active" data-v="full">Full Beat</button>
           <button type="button" class="chip" data-v="vocal_ready">Vocal-Ready</button>
           <button type="button" class="chip" data-v="both">Beide</button>
@@ -128,7 +131,8 @@
     <details class="param-section">
       <summary>Fusion-Modus</summary>
       <div class="section-body">
-        <div class="fusion-mode-chips" id="fusionMode" data-value="off">
+        <div class="fusion-mode-chips" id="fusionMode" data-value="off"
+             data-tooltip="Fusion kombiniert zwei Genres zu einem hybriden Beat.&#10;Aus = normales Genre-Modus&#10;Preset = vordefinierte Genre-Kombination&#10;Custom-Mix = freie Auswahl und Verhaeltnis zweier Genres">
           <button type="button" class="chip chip-active" data-v="off">Aus</button>
           <button type="button" class="chip" data-v="preset">Preset</button>
           <button type="button" class="chip" data-v="custom">Custom-Mix</button>
@@ -203,7 +207,7 @@
 
     <!-- Soundfont-Auswahl (immer sichtbar, beeinflusst Render-Geschwindigkeit) -->
     <div class="gen-sf2-bar">
-      <span class="gen-sf2-lbl">SOUNDFONT</span>
+      <span class="gen-sf2-lbl" data-tooltip="Soundfont (SF2) bestimmt den Grundklang aller Instrumente.&#10;Genre-Standard = automatisch passende Bibliothek.&#10;Wird auf den Advisor-Mixer-SF2 synchronisiert.">SOUNDFONT</span>
       <select id="genSf2Select" class="gen-select gen-select-sm"
               onchange="G.sf2Key=this.value||null; G.sf2Uuid=null;
                         $('sf2FileName').textContent='';
@@ -213,7 +217,8 @@
     </div>
 
     <!-- Generieren-Button (ausserhalb des Scroll-Bereichs, immer sichtbar) -->
-    <button id="btnGenerate" class="gen-generate-btn">&#9654; Beat generieren</button>
+    <button id="btnGenerate" class="gen-generate-btn"
+            data-tooltip="Startet die Beat-Generierung mit den aktuellen Parametern.&#10;Das dauert ca. 10-30 Sekunden — bitte warten.">&#9654; Beat generieren</button>
 
   </aside>
 
@@ -442,8 +447,10 @@
 
             <!-- Solo-Rendering -->
             <div class="groove-solo-bar">
-              <button class="groove-all-btn" id="btnRenderAllSolos">&#9654; ALLE SOLOS RENDERN</button>
-              <button class="groove-reset-btn" id="btnResetSolos">&#10005; SOLOS ZURUECKSETZEN</button>
+              <button class="groove-all-btn" id="btnRenderAllSolos"
+                      data-tooltip="Rendert jede Spur einzeln als separates Audio.&#10;So kannst du jedes Instrument isoliert abhoeren.&#10;Dauert etwas laenger als ein normales Rendering.">&#9654; ALLE SOLOS RENDERN</button>
+              <button class="groove-reset-btn" id="btnResetSolos"
+                      data-tooltip="Loescht alle Solo-Vorschaufiles und setzt die Solo-Ansicht zurueck.">&#10005; SOLOS ZURUECKSETZEN</button>
             </div>
             <div id="grooveSoloRows" class="groove-solo-rows"></div>
 
@@ -451,25 +458,25 @@
             <div id="grooveParamPanel" class="groove-param-panel" hidden>
               <div class="groove-section-hdr" id="grooveParamLabel" style="margin-bottom:.3rem;">—</div>
               <div class="groove-param-grid">
-                <label class="groove-param-lbl">Swing
+                <label class="groove-param-lbl" data-tooltip="Swing verschiebt jeden zweiten 16tel-Schlag nach hinten.&#10;50% = gerades Timing (kein Swing)&#10;60-65% = typischer Trap/Hip-Hop Swing&#10;75% = stark geshuffelt (Jazz-Feeling)">Swing
                   <div class="slider-row">
                     <input type="range" id="gp_swing" min="25" max="75" step="0.5" value="50">
                     <span class="slider-val" id="gp_swingVal">50.0 %</span>
                   </div>
                 </label>
-                <label class="groove-param-lbl">Nudge
+                <label class="groove-param-lbl" data-tooltip="Verschiebt alle Noten dieser Spur zeitlich.&#10;Negative Werte = Spur spielt frueh (aggressiver)&#10;Positive Werte = Spur spielt spaet (entspannter)&#10;Bereich: -100 bis +100 Millisekunden">Nudge
                   <div style="display:flex;align-items:center;gap:.3rem;">
                     <input type="number" id="gp_nudge" min="-100" max="100" step="0.5" value="0" class="gen-input" style="width:70px;">
                     <span style="color:#666;font-size:.72rem;">ms</span>
                   </div>
                 </label>
-                <label class="groove-param-lbl">Vel min
+                <label class="groove-param-lbl" data-tooltip="Lautstaerke-Untergrenze fuer diese Spur (MIDI-Velocity).&#10;1 = sehr leise, 64 = mittel, 127 = volle Lautstaerke.&#10;Zusammen mit Vel max ergibt sich der Dynamikbereich.">Vel min
                   <input type="number" id="gp_velMin" min="1" max="127" value="1" class="gen-input" style="width:58px;">
                 </label>
-                <label class="groove-param-lbl">max
+                <label class="groove-param-lbl" data-tooltip="Lautstaerke-Obergrenze fuer diese Spur (MIDI-Velocity).&#10;Muss groesser als Vel min sein.&#10;Kleiner Abstand = wenig Dynamik, grosser = viel.">max
                   <input type="number" id="gp_velMax" min="1" max="127" value="127" class="gen-input" style="width:58px;">
                 </label>
-                <label class="groove-param-lbl">Kurve
+                <label class="groove-param-lbl" data-tooltip="Lautstaerke-Kurve ueber den Takt.&#10;Gleichmaessig = alle Noten gleich laut&#10;Betont = Zaehler 1 und 3 betonter&#10;Crescendo = wird lauter&#10;Diminuendo = wird leiser">Kurve
                   <select id="gp_curve" class="gen-select" style="width:auto;">
                     <option value="flat">Gleichmaessig</option>
                     <option value="accent">Betont</option>
@@ -478,31 +485,34 @@
                   </select>
                 </label>
               </div>
-              <button class="groove-btn groove-save-param-btn" id="btnSaveGrooveParam" onclick="saveGrooveParam()">&#10003; Uebernehmen</button>
+              <button class="groove-btn groove-save-param-btn" id="btnSaveGrooveParam" onclick="saveGrooveParam()"
+                      data-tooltip="Speichert diese Groove-Parameter fuer die ausgewaehlte Spur.&#10;Erst nach &quot;GROOVE ANWENDEN&quot; werden die Aenderungen gerendert.">&#10003; Uebernehmen</button>
             </div>
 
             <!-- Humanize -->
             <div class="groove-humanize-block">
               <div class="groove-section-hdr">HUMANISIERUNG</div>
               <div class="groove-param-grid">
-                <label class="groove-param-lbl">Vel-Jitter
+                <label class="groove-param-lbl" data-tooltip="Zufaellige Lautstaerkeschwankung pro Note (alle Spuren).&#10;0 = alle Noten exakt gleich laut&#10;±15 = natuerlich, lebendig&#10;±30 = stark variierend (Handgespielt-Feeling)">Vel-Jitter
                   <div class="slider-row">
                     <input type="range" id="gp_velJitter" min="0" max="30" step="1" value="0">
                     <span class="slider-val" id="gp_velJitterVal">&#177;0</span>
                   </div>
                 </label>
-                <label class="groove-param-lbl">Time-Jitter
+                <label class="groove-param-lbl" data-tooltip="Zufaellige Timing-Abweichung pro Note (alle Spuren).&#10;0 = perfekt quantisiert&#10;±10 ms = leicht menschlich&#10;±50 ms = stark unpraeziese (Vintage-Feeling)">Time-Jitter
                   <div class="slider-row">
                     <input type="range" id="gp_timeJitter" min="0" max="50" step="1" value="0">
                     <span class="slider-val" id="gp_timeJitterVal">&#177;0 ms</span>
                   </div>
                 </label>
                 <div style="display:flex;align-items:flex-end;gap:.4rem;">
-                  <label class="groove-param-lbl">Seed (leer = neu)
+                  <label class="groove-param-lbl" data-tooltip="Zufallszahl fuer reproduzierbare Humanisierung.&#10;Gleicher Seed = gleiche zufaellige Abweichungen.&#10;Leer = bei jedem Rendern neu berechnet.">Seed (leer = neu)
                     <input type="number" id="gp_humanSeed" placeholder="zufaellig" class="gen-input" style="width:90px;">
                   </label>
-                  <button class="groove-btn" id="btnGrooveRoll" onclick="grooveRoll()">W&#252;rfeln</button>
-                  <button class="groove-btn" id="btnGrooveClear" onclick="grooveClear()">Leeren</button>
+                  <button class="groove-btn" id="btnGrooveRoll" onclick="grooveRoll()"
+                          data-tooltip="Generiert einen neuen zufaelligen Seed und rendert sofort neu.">W&#252;rfeln</button>
+                  <button class="groove-btn" id="btnGrooveClear" onclick="grooveClear()"
+                          data-tooltip="Setzt alle Groove-Parameter auf die Standardwerte zurueck.">Leeren</button>
                 </div>
               </div>
             </div>
@@ -510,14 +520,19 @@
             <!-- Palette & FX-Kette -->
             <div class="groove-section-hdr" style="margin-top:.25rem;">PALETTE &amp; FX-KETTE</div>
             <div class="palette-panel">
-              <select id="paletteSelect" class="gen-select gen-select-sm" onchange="onPaletteChange(this.value)">
-                <option value="">— zuerst Beat generieren —</option>
-              </select>
+              <span class="tt-wrap" data-tooltip="Instrument-Palette: vordefiniertes Set von GM-Instrumenten passend zum Genre.&#10;Jede Palette klingt anders — experimentiere!&#10;Erst Beat generieren, dann Palette wechseln und neu rendern.">
+                <select id="paletteSelect" class="gen-select gen-select-sm" onchange="onPaletteChange(this.value)">
+                  <option value="">— zuerst Beat generieren —</option>
+                </select>
+              </span>
               <div id="paletteDesc" class="palette-desc"></div>
               <div class="palette-fx-row">
-                <button class="palette-fx-btn palette-fx-active" id="pfxbtn_neutral" onclick="setPaletteVariant('neutral')">NATURAL</button>
-                <button class="palette-fx-btn" id="pfxbtn_bright" onclick="setPaletteVariant('bright')">POLISHED</button>
-                <button class="palette-fx-btn" id="pfxbtn_dark" onclick="setPaletteVariant('dark')">UNDERGROUND</button>
+                <button class="palette-fx-btn palette-fx-active" id="pfxbtn_neutral" onclick="setPaletteVariant('neutral')"
+                        data-tooltip="NATURAL: Kein zusaetzlicher EQ oder Kompressor.&#10;Klingt wie direkt aus dem Synthesizer.">NATURAL</button>
+                <button class="palette-fx-btn" id="pfxbtn_bright" onclick="setPaletteVariant('bright')"
+                        data-tooltip="POLISHED: Mehr Hoehen, sanfte Kompression.&#10;Professioneller, kommerzieller Sound.">POLISHED</button>
+                <button class="palette-fx-btn" id="pfxbtn_dark" onclick="setPaletteVariant('dark')"
+                        data-tooltip="UNDERGROUND: Tiefpass-Filter, Saettigung.&#10;Rawer, dreckiger, analog-klingender Sound.">UNDERGROUND</button>
               </div>
               <div id="paletteVariantDesc" class="palette-desc"></div>
             </div>
@@ -525,8 +540,9 @@
             <!-- Theorie-Pruefer -->
             <div class="theory-panel">
               <div class="theory-header">
-                <span class="groove-section-hdr">THEORIE</span>
-                <button class="groove-btn" onclick="checkTheory()">&#10003; Pruefen</button>
+                <span class="groove-section-hdr" data-tooltip="BDRA-Theoriepruefer: analysiert 5 Klangprinzipien.&#10;P1 Sub-Bass · P2 Register · P3 Attack&#10;P4 Dichte · P5 Helligkeit&#10;Score 80+ = professionell ausgewogen.">THEORIE</span>
+                <button class="groove-btn" onclick="checkTheory()"
+                        data-tooltip="Analysiert das aktuelle Beat-Arrangement nach psychoakustischen Regeln.">&#10003; Pruefen</button>
               </div>
               <div class="theory-score-row">
                 <span class="theory-score-lbl">SCORE</span>
@@ -554,13 +570,13 @@
 
             <!-- Sample-Zuweisung pro Track -->
             <details class="groove-sub-section" id="samplePanel">
-              <summary title="Assign an audio file to each instrument track. When assigned, the sample replaces the built-in synthesiser for that track.">Samples (eigene Audio-Dateien pro Track)</summary>
+              <summary data-tooltip="Weise jeder Spur eine eigene Audio-Datei zu.&#10;Die Datei ersetzt den eingebauten Synthesizer fuer diese Spur.&#10;Unterstuetzte Formate: WAV, MP3, OGG, FLAC.">Samples (eigene Audio-Dateien pro Track)</summary>
               <div class="sample-rows" id="sampleRows"></div>
             </details>
 
             <!-- Timbre-Editor: Per-Instrument-Klangsynthese -->
             <details class="groove-sub-section" id="timbrePanel">
-              <summary title="Per-instrument synthesis preset and parameter editor. Select a preset to load starting values, then fine-tune with the sliders.">&#9835; TIMBRE &#8212; Klangsynthese</summary>
+              <summary data-tooltip="Klangsynthese-Editor fuer einzelne Instrumente.&#10;Preset laden = Startwerte fuer das Instrument&#10;Dann mit den Reglern feinabstimmen.&#10;Wirkung erst nach &quot;GROOVE ANWENDEN&quot; sichtbar.">&#9835; TIMBRE &#8212; Klangsynthese</summary>
               <div class="timbre-content">
 
                 <!-- KICK -->
@@ -568,35 +584,33 @@
                   <div class="timbre-role-hdr timbre-kick-hdr">KICK</div>
                   <div class="timbre-preset-row">
                     <span class="timbre-preset-lbl">Preset</span>
-                    <select id="timbre_kick_preset" class="gen-select gen-select-sm"
-                            title="Select a synthesis preset for KICK. Choose (none) to use the built-in default synthesis for this role."
-                            onchange="onTimbrePresetChange('kick')">
-                      <option value="(none)">(none)</option>
-                    </select>
+                    <span class="tt-wrap" data-tooltip="Synthesizer-Preset fuer KICK laden.&#10;(none) = eingebaute Standardsynthese.&#10;Nach Auswahl werden die Regler mit Preset-Werten befuellt.">
+                      <select id="timbre_kick_preset" class="gen-select gen-select-sm"
+                              onchange="onTimbrePresetChange('kick')">
+                        <option value="(none)">(none)</option>
+                      </select>
+                    </span>
                   </div>
-                  <label class="groove-param-lbl">Pitch Ende (Hz)
+                  <label class="groove-param-lbl" data-tooltip="Ziel-Frequenz des Kick-Pitchglides (Sinus-Schwanz).&#10;Tief = dunkler 808-Sub-Kick (20-45 Hz)&#10;Hoch = knackiger, melodischer Kick.">Pitch Ende (Hz)
                     <div class="slider-row">
                       <input type="range" id="timbre_kick_pitch_end_hz"
                              min="20" max="200" step="1" value="45"
-                             title="Target frequency the kick pitch glides to (sine tail). Lower = deeper 808 sub-kick."
                              oninput="$('timbre_kick_pitch_end_hz_val').textContent=this.value">
                       <span class="slider-val" id="timbre_kick_pitch_end_hz_val">45</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Rauschanteil
+                  <label class="groove-param-lbl" data-tooltip="Transienten-Rauschanteil des Kick-Anschlags.&#10;0 = reiner Sinus / 808-Ton&#10;Hoeher = punchigerer, knackigerer Anschlag.">Rauschanteil
                     <div class="slider-row">
                       <input type="range" id="timbre_kick_noise_amount"
                              min="0" max="1" step="0.01" value="0.05"
-                             title="Transient noise burst level. 0 = pure sine/808. Higher = punchier attack click."
                              oninput="$('timbre_kick_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_kick_noise_amount_val">0.05</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Ausklingen (ms)
+                  <label class="groove-param-lbl" data-tooltip="Abklingzeit der Kick-Huelle.&#10;50 ms = kurz, trocken, punchig&#10;280 ms = ausgewogen&#10;800 ms = langer Sub-Schwanz (808-Style)">Ausklingen (ms)
                     <div class="slider-row">
                       <input type="range" id="timbre_kick_decay_ms"
                              min="50" max="1000" step="10" value="280"
-                             title="Kick envelope decay time. 50 ms = tight / punchy. 800 ms = long boomy tail."
                              oninput="$('timbre_kick_decay_ms_val').textContent=this.value">
                       <span class="slider-val" id="timbre_kick_decay_ms_val">280</span>
                     </div>
@@ -608,35 +622,33 @@
                   <div class="timbre-role-hdr timbre-snare-hdr">SNARE</div>
                   <div class="timbre-preset-row">
                     <span class="timbre-preset-lbl">Preset</span>
-                    <select id="timbre_snare_preset" class="gen-select gen-select-sm"
-                            title="Select a synthesis preset for SNARE. Choose (none) to use the built-in default synthesis for this role."
-                            onchange="onTimbrePresetChange('snare')">
-                      <option value="(none)">(none)</option>
-                    </select>
+                    <span class="tt-wrap" data-tooltip="Synthesizer-Preset fuer SNARE laden.&#10;(none) = eingebaute Standardsynthese.">
+                      <select id="timbre_snare_preset" class="gen-select gen-select-sm"
+                              onchange="onTimbrePresetChange('snare')">
+                        <option value="(none)">(none)</option>
+                      </select>
+                    </span>
                   </div>
-                  <label class="groove-param-lbl">Pitch (Hz)
+                  <label class="groove-param-lbl" data-tooltip="Koerper-Pitch der Snare.&#10;80 Hz = tiefer, dumpfer Tom-Charakter&#10;140 Hz = klassische Snare&#10;400 Hz = heller, duenner Klang">Pitch (Hz)
                     <div class="slider-row">
                       <input type="range" id="timbre_snare_pitch_end_hz"
                              min="80" max="400" step="1" value="140"
-                             title="Semitone offset for the snare body pitch. Negative = deeper, positive = snappier."
                              oninput="$('timbre_snare_pitch_end_hz_val').textContent=this.value">
                       <span class="slider-val" id="timbre_snare_pitch_end_hz_val">140</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Rauschanteil
+                  <label class="groove-param-lbl" data-tooltip="Verhaeltnis Rauschen zu Ton.&#10;0 = reiner Ton (klingt wie Tom)&#10;0.6 = klassische Snare-Mischung&#10;1 = nur Rauschen (Buerstensnare)">Rauschanteil
                     <div class="slider-row">
                       <input type="range" id="timbre_snare_noise_amount"
                              min="0" max="1" step="0.01" value="0.6"
-                             title="Noise-to-body mix. 0 = pure tone (tom-like). 1 = all noise (brushed snare)."
                              oninput="$('timbre_snare_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_snare_noise_amount_val">0.60</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Ausklingen (ms)
+                  <label class="groove-param-lbl" data-tooltip="Abklingzeit der Snare-Huelle.&#10;30 ms = sehr kurz, trocken&#10;150 ms = natuerlich&#10;400 ms = langer Nachhall">Ausklingen (ms)
                     <div class="slider-row">
                       <input type="range" id="timbre_snare_decay_ms"
                              min="30" max="400" step="5" value="150"
-                             title="Snare envelope decay time."
                              oninput="$('timbre_snare_decay_ms_val').textContent=this.value">
                       <span class="slider-val" id="timbre_snare_decay_ms_val">150</span>
                     </div>
@@ -648,35 +660,33 @@
                   <div class="timbre-role-hdr timbre-hihat-hdr">HI-HAT</div>
                   <div class="timbre-preset-row">
                     <span class="timbre-preset-lbl">Preset</span>
-                    <select id="timbre_hihat_preset" class="gen-select gen-select-sm"
-                            title="Select a synthesis preset for HI-HAT. Choose (none) to use the built-in default synthesis for this role."
-                            onchange="onTimbrePresetChange('hihat')">
-                      <option value="(none)">(none)</option>
-                    </select>
+                    <span class="tt-wrap" data-tooltip="Synthesizer-Preset fuer HI-HAT laden.&#10;(none) = eingebaute Standardsynthese.">
+                      <select id="timbre_hihat_preset" class="gen-select gen-select-sm"
+                              onchange="onTimbrePresetChange('hihat')">
+                        <option value="(none)">(none)</option>
+                      </select>
+                    </span>
                   </div>
-                  <label class="groove-param-lbl">Ausklingen (ms)
+                  <label class="groove-param-lbl" data-tooltip="Abklingzeit des Hi-Hats.&#10;10-30 ms = geschlossene Hi-Hat (kurz, trocken)&#10;100-400 ms = offene Hi-Hat (laenger, zischend)">Ausklingen (ms)
                     <div class="slider-row">
                       <input type="range" id="timbre_hihat_decay_ms"
                              min="10" max="400" step="5" value="60"
-                             title="Hi-hat decay. Short = closed hat (tight). Long = open hat (sizzle)."
                              oninput="$('timbre_hihat_decay_ms_val').textContent=this.value">
                       <span class="slider-val" id="timbre_hihat_decay_ms_val">60</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Rauschanteil
+                  <label class="groove-param-lbl" data-tooltip="Hochfrequenz-Anteil des Hi-Hats.&#10;0 = dunkle, geschlossene Hi-Hat&#10;1 = helle, schneidende offene Hi-Hat">Rauschanteil
                     <div class="slider-row">
                       <input type="range" id="timbre_hihat_noise_amount"
                              min="0" max="1" step="0.01" value="0.95"
-                             title="High-frequency content. 0 = dark closed hat. 1 = bright, cutting open hat."
                              oninput="$('timbre_hihat_noise_amount_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_hihat_noise_amount_val">0.95</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">S&#228;ttigung
+                  <label class="groove-param-lbl" data-tooltip="Soft-Clip-Saettigung (analoger Charakter).&#10;0 = sauber und digital&#10;1 = warme harmonische Verzerrung">S&#228;ttigung
                     <div class="slider-row">
                       <input type="range" id="timbre_hihat_drive"
                              min="0" max="1" step="0.01" value="0"
-                             title="Soft-clip saturation drive. 0 = clean. 1 = warm harmonic distortion."
                              oninput="$('timbre_hihat_drive_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_hihat_drive_val">0.00</span>
                     </div>
@@ -688,35 +698,33 @@
                   <div class="timbre-role-hdr timbre-melodic-hdr">MELODIC</div>
                   <div class="timbre-preset-row">
                     <span class="timbre-preset-lbl">Preset</span>
-                    <select id="timbre_melodic_preset" class="gen-select gen-select-sm"
-                            title="Select a synthesis preset for MELODIC. Choose (none) to use the built-in default synthesis for this role."
-                            onchange="onTimbrePresetChange('melodic')">
-                      <option value="(none)">(none)</option>
-                    </select>
+                    <span class="tt-wrap" data-tooltip="Synthesizer-Preset fuer MELODIC-Stimmen laden.&#10;(none) = eingebaute Standardsynthese.&#10;Gilt fuer Bass, Akkorde, Lead, Pad, Arp, Stabs.">
+                      <select id="timbre_melodic_preset" class="gen-select gen-select-sm"
+                              onchange="onTimbrePresetChange('melodic')">
+                        <option value="(none)">(none)</option>
+                      </select>
+                    </span>
                   </div>
-                  <label class="groove-param-lbl">Anschlag (ms)
+                  <label class="groove-param-lbl" data-tooltip="Einschwingzeit melodischer Stimmen.&#10;1 ms = Pluck / Stab (sofort da)&#10;15 ms = natuerlicher Anschlag&#10;200 ms = langsames Pad-Anschwellen">Anschlag (ms)
                     <div class="slider-row">
                       <input type="range" id="timbre_melodic_attack_ms"
                              min="1" max="500" step="1" value="15"
-                             title="Attack time for melodic voices. 1 ms = pluck / stab. 200 ms = slow pad swell."
                              oninput="$('timbre_melodic_attack_ms_val').textContent=this.value">
                       <span class="slider-val" id="timbre_melodic_attack_ms_val">15</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">Helligkeit
+                  <label class="groove-param-lbl" data-tooltip="Tiefpass-Filter-Grenzfrequenz (Helligkeit).&#10;0 = dunkel / gedaempft (Lo-Fi, Vintage)&#10;0.5 = ausgewogen&#10;1 = hell / offen (klar, strahlend)">Helligkeit
                     <div class="slider-row">
                       <input type="range" id="timbre_melodic_brightness"
                              min="0" max="1" step="0.01" value="0.5"
-                             title="Low-pass filter cutoff brightness. 0 = dark/muffled. 1 = bright/open."
                              oninput="$('timbre_melodic_brightness_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_melodic_brightness_val">0.50</span>
                     </div>
                   </label>
-                  <label class="groove-param-lbl">S&#228;ttigung
+                  <label class="groove-param-lbl" data-tooltip="Soft-Clip-Saettigung (analoger Charakter).&#10;0 = sauber und digital&#10;1 = warme harmonische Verzerrung">S&#228;ttigung
                     <div class="slider-row">
                       <input type="range" id="timbre_melodic_drive"
                              min="0" max="1" step="0.01" value="0.05"
-                             title="Soft-clip saturation drive. 0 = clean. 1 = warm harmonic distortion."
                              oninput="$('timbre_melodic_drive_val').textContent=parseFloat(this.value).toFixed(2)">
                       <span class="slider-val" id="timbre_melodic_drive_val">0.05</span>
                     </div>
@@ -730,24 +738,29 @@
             <div class="groove-section-hdr">MIXER</div>
             <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;flex-wrap:wrap;">
               <!-- Genre-Auswahl: beeinflusst welche Feels angeboten werden -->
-              <select id="grooveGenreSelect" class="gen-select" style="width:auto;font-size:.72rem;"
-                      onchange="onGrooveGenreChange(this.value)">
-                {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
-                  <option value="{{ g }}">{{ g|capitalize }}</option>
-                {% endfor %}
-              </select>
+              <span class="tt-wrap" data-tooltip="Genre fuer das Groove-Preset.&#10;Beeinflusst die verfuegbaren Feel-Presets.&#10;Wird automatisch auf das generierte Genre gesetzt.">
+                <select id="grooveGenreSelect" class="gen-select" style="width:auto;font-size:.72rem;"
+                        onchange="onGrooveGenreChange(this.value)">
+                  {% for g in ["trap","phonk","hiphop","techno","house","edm","pop","cinematic","classical","jpop"] %}
+                    <option value="{{ g }}">{{ g|capitalize }}</option>
+                  {% endfor %}
+                </select>
+              </span>
               <!-- Feel-Auswahl: wird per JS aus GROOVE_NAMED_PRESETS befuellt -->
-              <select id="grooveFeelSelect" class="gen-select" style="width:auto;font-size:.72rem;"
-                      title="Benanntes Feel-Preset fuer das gewaehlte Genre laden">
-                <option value="">— Feel —</option>
-              </select>
-              <button type="button" class="groove-btn" id="btnLoadGroove">Preset laden</button>
-              <button type="button" class="groove-btn" id="btnResetGroove">Zur&#252;cksetzen</button>
+              <span class="tt-wrap" data-tooltip="Benanntes Feel-Preset: laedt einen kuratieren Groove-Charakter.&#10;z.B. Boom Bap, Lo-Fi Chill, Modern Rap (bei Hip-Hop).&#10;Leer = Genre-Standardwerte laden.">
+                <select id="grooveFeelSelect" class="gen-select" style="width:auto;font-size:.72rem;">
+                  <option value="">— Feel —</option>
+                </select>
+              </span>
+              <button type="button" class="groove-btn" id="btnLoadGroove"
+                      data-tooltip="Laedt das ausgewaehlte Genre- oder Feel-Preset in den Mixer.&#10;Ueberschreibt die aktuellen Mixer-Einstellungen.">Preset laden</button>
+              <button type="button" class="groove-btn" id="btnResetGroove"
+                      data-tooltip="Setzt alle Mixer-Spuren auf Standardwerte zurueck&#10;(Mute aus, Lautstaerke 0 dB, keine Swing/Nudge-Abweichung).">Zur&#252;cksetzen</button>
             </div>
             <div id="grooveMixerRows" class="groove-rows"></div>
 
             <!-- Soundfont-Auswahl -->
-            <div class="groove-section-hdr">SOUNDFONT</div>
+            <div class="groove-section-hdr" data-tooltip="Soundfont (SF2): die Klangbibliothek fuer die MIDI-Instrumente.&#10;Genre-Standard = automatisch passendes SF2&#10;Eigene SF2 hochladen fuer individuellen Klang.">SOUNDFONT</div>
             <div class="sf2-panel">
               <select id="sf2PresetSelect" class="gen-select gen-select-sm"
                       onchange="G.sf2Key=this.value||null; G.sf2Uuid=null;
@@ -759,14 +772,16 @@
                 <span class="sf2-upload-lbl">Eigene SF2-Datei:</span>
                 <input type="file" id="sf2FileInput" accept=".sf2" style="display:none"
                        onchange="uploadSf2File(this)">
-                <button class="groove-btn" onclick="$('sf2FileInput').click()">&#128190; Laden</button>
+                <button class="groove-btn" onclick="$('sf2FileInput').click()"
+                        data-tooltip="Eigene SF2-Soundfont-Datei hochladen.&#10;Erlaubt individuelle Instrumentenklaenge jenseits der Genre-Standards.&#10;Dateigroesse: typisch 50 MB - 500 MB.">&#128190; Laden</button>
                 <span id="sf2FileName" class="sf2-filename"></span>
               </div>
               <div id="sf2UploadProgress" class="sf2-progress" hidden>Wird hochgeladen&#8230;</div>
             </div>
 
             <!-- Groove anwenden & neu rendern -->
-            <button class="groove-apply-btn" id="btnApplyGroove">&#9654; GROOVE ANWENDEN &amp; NEU RENDERN</button>
+            <button class="groove-apply-btn" id="btnApplyGroove"
+                    data-tooltip="Rendert den Beat neu mit allen aktuellen Mixer-Einstellungen.&#10;Ergebnis erscheint als &quot;Groove Re-Render&quot; zum Vergleich.&#10;Dauert ca. 5-15 Sekunden.">&#9654; GROOVE ANWENDEN &amp; NEU RENDERN</button>
 
             <!-- Neu gerendertes Audio + Download -->
             <div id="grooveRerenderedWrap" class="groove-rerendered" hidden>
@@ -2015,19 +2030,23 @@ function buildGrooveSoloRows() {
     const db = (st.gain_db>=0?'+':'')+parseFloat(st.gain_db||0).toFixed(1);
     return `<div class="gsolo-row" id="gsolorow_${key}" onclick="selectGrooveTrack('${key}')">
       <button class="gsolo-play-btn" id="gsoloplay_${key}"
-              onclick="event.stopPropagation();soloPlayOrRender('${key}')">&#9654;</button>
+              onclick="event.stopPropagation();soloPlayOrRender('${key}')"
+              data-tooltip="${label} Solo rendern und abhoeren.&#10;Zeigt nur diese Spur isoliert.">&#9654;</button>
       <span class="gsolo-label">${label}</span>
       <div style="display:flex;align-items:center;gap:.3rem;flex:1;">
         <input type="range" class="vol-slider" min="-24" max="6" step="0.5" value="${st.gain_db||0}"
                id="gsvol_${key}" onclick="event.stopPropagation()"
-               oninput="onGrooveVol('${key}',this.value)">
+               oninput="onGrooveVol('${key}',this.value)"
+               data-tooltip="Lautstaerke von ${label}.&#10;-24 dB = sehr leise · 0 dB = Standard · +6 dB = lauter">
         <span class="gsolo-db" id="gsdb_${key}">${db} dB</span>
       </div>
       <span class="gsolo-pan" id="gspan_${key}">C</span>
       <button class="groove-btn${st.muted?' active':''}" id="gmute_${key}"
-              onclick="event.stopPropagation();toggleGrooveMute('${key}')">M</button>
+              onclick="event.stopPropagation();toggleGrooveMute('${key}')"
+              data-tooltip="${label} stummschalten (Mute).&#10;Stumme Spuren werden nicht in den Mix gerendert.">M</button>
       <button class="groove-btn${st.soloed?' active':''}" id="gsolobtn_${key}"
-              onclick="event.stopPropagation();toggleGrooveSolo('${key}')">S</button>
+              onclick="event.stopPropagation();toggleGrooveSolo('${key}')"
+              data-tooltip="${label} solo schalten.&#10;Alle anderen Spuren werden gedaempft.">S</button>
       <canvas class="gsolo-wave" id="gswave_${key}" width="120" height="28"></canvas>
     </div>`;
   }).join('');
@@ -2042,14 +2061,18 @@ function buildGrooveMixerRows() {
       <span class="groove-label">${label}</span>
       <span class="groove-db" id="gdb_${key}">${db} dB</span>
       <input type="range" min="-24" max="6" step="0.5" value="${st.gain_db||0}"
-             class="vol-slider" id="gvol_${key}" oninput="onGrooveVol2('${key}',this.value)">
+             class="vol-slider" id="gvol_${key}" oninput="onGrooveVol2('${key}',this.value)"
+             data-tooltip="Lautstaerke (Gain) von ${label} in Dezibel.&#10;-24 dB = sehr leise · 0 dB = Standard · +6 dB = lauter">
       <span class="groove-pan-val" id="gpan_${key}">C</span>
       <input type="range" min="-64" max="63" step="1" value="${st.pan||0}"
-             class="vol-slider" id="gpansl_${key}" oninput="onGroovePan('${key}',this.value)">
+             class="vol-slider" id="gpansl_${key}" oninput="onGroovePan('${key}',this.value)"
+             data-tooltip="Stereo-Pan von ${label}.&#10;L = links · C = Mitte · R = rechts">
       <button class="groove-btn${st.muted?' active':''}" id="gmute2_${key}"
-              onclick="toggleGrooveMute('${key}')">M</button>
+              onclick="toggleGrooveMute('${key}')"
+              data-tooltip="${label} stummschalten. Stumme Spuren fehlen im Re-Render.">M</button>
       <button class="groove-btn${st.soloed?' active':''}" id="gsolo2_${key}"
-              onclick="toggleGrooveSolo('${key}')">S</button>
+              onclick="toggleGrooveSolo('${key}')"
+              data-tooltip="${label} solo schalten. Alle anderen werden gedaempft.">S</button>
     </div>`;
   }).join('');
 }
@@ -2490,15 +2513,15 @@ function buildSamplePanel() {
   cont.innerHTML = SAMPLE_TRACKS.map(({key, label, isDrum}) => `
     <div class="sample-row" id="srow_${key}">
       <span class="sample-lbl">${label}</span>
-      <span class="sample-badge" id="sbadge_${key}" title="">—</span>
+      <span class="sample-badge" id="sbadge_${key}">—</span>
       <button class="sample-btn" onclick="triggerSampleUpload('${key}')"
-              title="Open a file picker to assign a sample to ${label}. Supported: WAV, AIFF, FLAC, OGG, MP3 · Max 20 MB.">&#128193;</button>
+              data-tooltip="Audio-Datei fuer ${label} auswaehlen.&#10;Unterstuetzte Formate: WAV, AIFF, FLAC, OGG, MP3&#10;Maximale Dateigroesse: 20 MB.">&#128193;</button>
       <button class="sample-btn" id="sprev_${key}"
               onclick="playSamplePreview('${key}')"
-              title="Preview the assigned sample. Enabled only when a file is assigned." disabled>&#9654;</button>
+              data-tooltip="Zugewiesenes Sample vorabhoeren.&#10;Nur verfuegbar wenn eine Datei zugewiesen ist." disabled>&#9654;</button>
       <button class="sample-btn clear" id="sclear_${key}"
               onclick="clearSampleAssignment('${key}')"
-              title="Remove the sample assignment for ${label}." disabled>&#10005;</button>
+              data-tooltip="Sample-Zuweisung fuer ${label} entfernen.&#10;Die Spur verwendet wieder den eingebauten Synthesizer." disabled>&#10005;</button>
       <input type="file" id="sfile_${key}" accept=".wav,.aif,.aiff,.flac,.ogg,.mp3"
              style="display:none" onchange="onSampleFileSelect('${key}', this)">
     </div>
