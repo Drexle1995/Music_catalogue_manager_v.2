@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from flask import Blueprint, jsonify, render_template
 from flask_login import current_user, login_required
 
-import database as db
+from db import database as db
 
 stats_bp = Blueprint("stats", __name__)
 

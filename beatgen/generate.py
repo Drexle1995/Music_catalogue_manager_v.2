@@ -23,20 +23,20 @@ from flask import (Blueprint, current_app, jsonify, request,
                    send_file, session)
 from flask_login import current_user, login_required
 
-import database as db
-import export_service
-import fusion_data
-import palette_data as _palette_data
-import theory_scorer as _theory_scorer
-import sample_upload as _sample_upload
-import gm_desc_data
-import groove_data
-import groove_bridge as _groove_bridge
-import groove_processor
-import instrument_data as _instr_data
-import piano_roll_extractor
-import production_advisor
-import prompt_data
+from db import database as db
+from beatgen import export_service
+from appdata import fusion_data
+from appdata import palette_data as _palette_data
+from beatgen import theory_scorer as _theory_scorer
+from catalog import sample_upload as _sample_upload
+from appdata import gm_desc_data
+from groove import groove_data
+from groove import groove_bridge as _groove_bridge
+from groove import groove_processor
+from appdata import instrument_data as _instr_data
+from beatgen import piano_roll_extractor
+from beatgen import production_advisor
+from appdata import prompt_data
 
 generate_bp = Blueprint("generate", __name__)
 
@@ -81,7 +81,7 @@ def _set_volume(cfg, track: str, value):
 # Music-Architect-Pfad — relativ zu dieser Datei aufgeloest, damit die App
 # unabhaengig vom Startverzeichnis funktioniert.
 # ---------------------------------------------------------------------------
-_MA_ROOT = pathlib.Path(__file__).parent.parent / "MUSIC_ARCHITECT_V7"
+_MA_ROOT = pathlib.Path(__file__).parent.parent.parent / "MUSIC_ARCHITECT_V7"
 _MA_SRC  = _MA_ROOT / "src"
 
 
@@ -175,7 +175,7 @@ def _persist_track(audio_uuid: str, user_id: int) -> int | None:
     watermark_tag = f"seed:{seed_tag}" if seed_tag is not None else None
 
     # Zielverzeichnis plattformunabhaengig aufbauen.
-    audio_dir = pathlib.Path(__file__).parent / "static" / "audio" / str(user_id)
+    audio_dir = pathlib.Path(__file__).parent.parent / "static" / "audio" / str(user_id)
     audio_dir.mkdir(parents=True, exist_ok=True)
     dest_path = audio_dir / f"{uuid.uuid4().hex}.wav"
     try:
@@ -193,7 +193,7 @@ def _persist_track(audio_uuid: str, user_id: int) -> int | None:
         )
         track_id = cur.lastrowid
         # as_posix() stellt Forward-Slashes auf allen Betriebssystemen sicher.
-        rel_path = dest_path.relative_to(pathlib.Path(__file__).parent).as_posix()
+        rel_path = dest_path.relative_to(pathlib.Path(__file__).parent.parent).as_posix()
         conn.execute(
             "INSERT INTO exports (track_id, tier, file_path, file_format, found_at) "
             "VALUES (?, 'wav', ?, 'wav', ?)",
@@ -712,7 +712,7 @@ def save_track():
         return jsonify({"error": "not_found",
                         "message": "Temporaere Datei fehlt. Bitte neu generieren."}), 400
 
-    audio_dir = (pathlib.Path(__file__).parent / "static" / "audio"
+    audio_dir = (pathlib.Path(__file__).parent.parent / "static" / "audio"
                  / str(current_user.id))
     audio_dir.mkdir(parents=True, exist_ok=True)
 
@@ -731,7 +731,7 @@ def save_track():
         )
         track_id = cur.lastrowid
 
-        rel_path = str(dest_path.relative_to(pathlib.Path(__file__).parent))
+        rel_path = str(dest_path.relative_to(pathlib.Path(__file__).parent.parent))
         conn.execute(
             "INSERT INTO exports (track_id, tier, file_path, file_format, found_at) "
             "VALUES (?, 'wav', ?, 'wav', ?)",
@@ -1021,9 +1021,17 @@ def rerender_track():
                 instrument_params=instr_params_obj or None,
             )
 
+        # Groovte Komposition als composition.json in rr_dir speichern,
+        # damit export_midi_route und export_json_route die bearbeitete Version liefern.
+        rr_comp_data = {**comp_data, "composition": modified}
+        (rr_dir / "composition.json").write_text(
+            json.dumps(rr_comp_data, ensure_ascii=False), encoding="utf-8")
+
         rr_uuid = str(uuid.uuid4())
         session[f"temp_{rr_uuid}"]        = str(rr_path)
         session[f"temp_genre_{rr_uuid}"]  = comp_data.get("genre", "beat")
+        # temp_dir wird fuer MIDI- und JSON-Export benoetigt (export_midi_route, export_json_route).
+        session[f"temp_dir_{rr_uuid}"]    = str(rr_dir)
         # origin_uuid verknuepft Re-Render-Export mit dem Haupt-Kontingent-Gate.
         session[f"origin_uuid_{rr_uuid}"] = audio_uuid
         # rerender_url statt audio_url: das Frontend haelt den Original-URL unveraendert.

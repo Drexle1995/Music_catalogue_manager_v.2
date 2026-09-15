@@ -14,7 +14,7 @@ Kostenannahmen die zentralen betriebswirtschaftlichen Kennzahlen:
 Bewusst als reine, testbare Funktionen gehalten -- ideal fuer das Testprotokoll.
 """
 
-import database as db
+from db import database as db
 
 
 def _f(value, default=0.0):
@@ -101,8 +101,6 @@ def compute():
     # Durchschnittlicher Deckungsbeitrag je Lizenz -> Break-even in Stueck.
     avg_price = (revenue_total / license_count) if license_count else 0.0
     # DB je Lizenz naeherungsweise: Erloes minus variabler Kostenanteil je Track.
-    # (Variable Kosten fallen je Track an, nicht je Lizenz; fuer die Break-even-
-    #  Stueckzahl nutzen wir den Durchschnittspreis als konservative Naeherung.)
     break_even_units = (costs["fixed_cost"] / avg_price) if avg_price else None
     break_even_revenue = costs["fixed_cost"] + variable_cost
 

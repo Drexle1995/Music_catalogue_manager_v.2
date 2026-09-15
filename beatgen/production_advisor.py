@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Pfad zu den Produktionsleitfaden-JSONs.
 _GUIDE_DIR = (
-    pathlib.Path(__file__).parent.parent
+    pathlib.Path(__file__).parent.parent.parent
     / "MUSIC_ARCHITECT_V7"
     / "data"
     / "production_guide"

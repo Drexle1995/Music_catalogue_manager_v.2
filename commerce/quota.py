@@ -8,7 +8,7 @@ Beide Limits sind in den Einstellungen konfigurierbar.
 
 from datetime import date, datetime
 
-import database as db
+from db import database as db
 
 
 # --- Nutzer -----------------------------------------------------------------

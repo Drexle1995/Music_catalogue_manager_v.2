@@ -10,7 +10,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import check_password_hash, generate_password_hash
 
-import database as db
+from db import database as db
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -32,7 +32,7 @@ class User(UserMixin):
 
     @staticmethod
     def load(user_id: int):
-        """Wird vom login_manager-user_loader-Callback in app.py aufgerufen."""
+        """Wird vom login_manager-user_loader-Callback in main.py aufgerufen."""
         conn = db.get_conn()
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         conn.close()

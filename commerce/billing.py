@@ -19,7 +19,7 @@ den simulierten Bestaetigungsschritt; die uebrige Logik bleibt gleich.
 from datetime import date, datetime
 
 import config
-import database as db
+from db import database as db
 
 
 def _today():

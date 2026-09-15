@@ -15,8 +15,8 @@ Jede erfolgreiche Transaktion wird im Audit-Protokoll festgehalten.
 from datetime import date, datetime
 
 import config
-import database as db
-import quota
+from db import database as db
+from commerce import quota
 
 
 class LicenseError(Exception):

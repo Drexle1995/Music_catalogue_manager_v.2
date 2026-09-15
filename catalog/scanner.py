@@ -14,8 +14,9 @@ import re
 from datetime import datetime
 
 import config
-import database as db
-from watermark_reader import read_watermark
+from db import database as db
+from catalog import watermark_reader
+from catalog.watermark_reader import read_watermark
 
 
 # --- Hilfsfunktionen --------------------------------------------------------

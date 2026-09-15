@@ -16,7 +16,7 @@ from typing import List, Tuple
 
 # Pfad zur JSON-Datei — relativ zu dieser Datei berechnet (plattformunabhaengig).
 _JSON_PATH = (
-    pathlib.Path(__file__).parent.parent
+    pathlib.Path(__file__).parent.parent.parent
     / "MUSIC_ARCHITECT_V7"
     / "data"
     / "production_guide"

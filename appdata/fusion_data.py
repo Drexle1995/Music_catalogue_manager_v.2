@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Optional
 # ---------------------------------------------------------------------------
 # MUSIC_ARCHITECT_V7-Pfad — relativ zu dieser Datei berechnet.
 # ---------------------------------------------------------------------------
-_MA_ROOT = pathlib.Path(__file__).parent.parent / "MUSIC_ARCHITECT_V7"
+_MA_ROOT = pathlib.Path(__file__).parent.parent.parent / "MUSIC_ARCHITECT_V7"
 _MA_SRC  = _MA_ROOT / "src"
 
 

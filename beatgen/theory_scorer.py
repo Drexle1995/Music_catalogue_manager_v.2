@@ -20,7 +20,7 @@ import sys
 from typing import Any, Dict
 
 # Pfad zum MA-V7-Quellverzeichnis (relativ zu dieser Datei berechnet).
-_MA_ROOT = pathlib.Path(__file__).parent.parent / "MUSIC_ARCHITECT_V7"
+_MA_ROOT = pathlib.Path(__file__).parent.parent.parent / "MUSIC_ARCHITECT_V7"
 _MA_SRC  = _MA_ROOT / "src"
 
 

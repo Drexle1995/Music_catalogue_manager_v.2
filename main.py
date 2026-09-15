@@ -6,12 +6,13 @@ Ergaenzendes kaufmaennisches Modul zum Musikproduktions-Gesamtpaket
 Ausgabeordner, verwaltet Katalog & Lizenzen, rechnet die Wirtschaftlichkeit
 und fuehrt ein Audit-Protokoll.
 
-Start:  python app.py     ->  http://127.0.0.1:5000
+Start:  python main.py     ->  http://127.0.0.1:5000
 """
 
 import csv
 import io
 import pathlib
+from datetime import timedelta
 
 from flask import (Flask, flash, redirect, render_template, request,
                    Response, url_for)
@@ -19,19 +20,19 @@ from flask_login import LoginManager, login_required, current_user
 from flask_session import Session
 
 import config
-import database as db
-import billing
-import economics
-import gateway
-import licensing
-import quota
-import scanner
-from demo_data import generate as generate_demo
-from auth import auth_bp, User
-from generate import generate_bp
-from rbac import require_admin
-from sample_upload import sample_upload_bp
-from stats import stats_bp
+from db import database as db
+from commerce import billing
+from commerce import economics
+from commerce import gateway
+from commerce import licensing
+from commerce import quota
+from catalog import scanner
+from db.demo_data import generate as generate_demo
+from auth.auth import auth_bp, User
+from beatgen.generate import generate_bp
+from auth.rbac import require_admin
+from catalog.sample_upload import sample_upload_bp
+from catalog.stats import stats_bp
 
 app = Flask(__name__)
 app.secret_key = "change-me-in-production"
@@ -43,7 +44,9 @@ _session_dir = pathlib.Path(__file__).parent / "flask_session"
 _session_dir.mkdir(exist_ok=True)
 app.config["SESSION_TYPE"]             = "filesystem"
 app.config["SESSION_FILE_DIR"]         = str(_session_dir)
-app.config["SESSION_PERMANENT"]        = False
+# Permanent=True damit die Session einen Browser-Neustart ueberlebt (Mac-Kompatibilitaet).
+app.config["SESSION_PERMANENT"]        = True
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.config["SESSION_USE_SIGNER"]       = True   # Session-ID im Cookie signieren
 app.config["SESSION_FILE_THRESHOLD"]   = 500    # max. Anzahl gespeicherter Session-Dateien
 Session(app)

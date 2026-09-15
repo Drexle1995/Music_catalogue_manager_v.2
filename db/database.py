@@ -266,7 +266,7 @@ def get_user_by_email(email: str):
 
 
 def create_user(email: str, password_hash: str, tier: str = "free"):
-    """Insert a new web-auth user; returns the new user id."""
+    """Legt einen neuen Web-Auth-Nutzer an; gibt die neue Nutzer-ID zurueck."""
     conn = get_conn()
     now = datetime.now().isoformat(timespec="seconds")
     cur = conn.execute(
@@ -283,7 +283,7 @@ def create_user(email: str, password_hash: str, tier: str = "free"):
 # --- Quota helpers -----------------------------------------------------------
 
 def get_quota(user_id: int, date: str):
-    """Return the quota_ledger row for (user_id, date), or None if it doesn't exist yet."""
+    """Gibt die quota_ledger-Zeile fuer (user_id, date) zurueck, oder None."""
     conn = get_conn()
     row = conn.execute(
         "SELECT * FROM quota_ledger WHERE user_id = ? AND date = ?",
@@ -294,11 +294,11 @@ def get_quota(user_id: int, date: str):
 
 
 def increment_quota(user_id: int, date: str):
-    """Upsert quota_ledger for today, incrementing daily and monthly saves by 1."""
-    # monthly_saves counts saves in the same YYYY-MM month prefix as date.
-    month_prefix = date[:7]  # e.g. "2026-08"
+    """Upsert quota_ledger fuer heute, erhoehe daily und monthly saves um 1."""
+    # monthly_saves zaehlt Saves im gleichen YYYY-MM-Monatspraefix.
+    month_prefix = date[:7]  # z.B. "2026-08"
     conn = get_conn()
-    # Ensure the row exists for today.
+    # Sicherstellen, dass die Zeile fuer heute existiert.
     conn.execute(
         "INSERT OR IGNORE INTO quota_ledger (user_id, date, daily_saves, monthly_saves) "
         "VALUES (?, ?, 0, 0)",
@@ -309,13 +309,13 @@ def increment_quota(user_id: int, date: str):
         "WHERE user_id = ? AND date = ?",
         (user_id, date),
     )
-    # Sum monthly saves across all days in the same month.
+    # Monatssumme ueber alle Tage im selben Monat berechnen.
     monthly = conn.execute(
         "SELECT COALESCE(SUM(daily_saves), 0) AS s FROM quota_ledger "
         "WHERE user_id = ? AND substr(date, 1, 7) = ?",
         (user_id, month_prefix),
     ).fetchone()["s"]
-    # Write the monthly total back to every row for this month so /quota can read it cheaply.
+    # Monatssumme in alle Zeilen dieses Monats zurueckschreiben.
     conn.execute(
         "UPDATE quota_ledger SET monthly_saves = ? "
         "WHERE user_id = ? AND substr(date, 1, 7) = ?",

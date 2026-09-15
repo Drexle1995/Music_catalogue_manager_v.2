@@ -14,8 +14,8 @@ Zwei Betriebsarten:
                    gesamte Freemium-Ablauf ohne das echte Programm vorfuehrbar ist.
 
 CLI:
-    python gateway.py --user "Abo-Kunde (Demo)" --count 4
-    python gateway.py --user 2 --count 5 --simulate
+    python -m commerce.gateway --user "Abo-Kunde (Demo)" --count 4
+    python -m commerce.gateway --user 2 --count 5 --simulate
 """
 
 import argparse
@@ -27,8 +27,8 @@ import sys
 from datetime import datetime
 
 import config
-import database as db
-import quota
+from db import database as db
+from commerce import quota
 
 
 def _simulate_generation(count, catalog_dir):
