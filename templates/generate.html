@@ -852,7 +852,7 @@
         <button class="export-other-btn" onclick="doExportPDF()">&#8659; Berater (.pdf)</button>
       </div>
       <div id="exportOtherErr" class="export-err" hidden></div>
-      <p class="export-hint">MIDI und JSON verwenden immer die Original-Komposition.</p>
+      <p class="export-hint">MIDI und JSON exportieren die aktive Version (Re-Render wenn ausgewaehlt, sonst Original).</p>
     </div>
 
   </div>
@@ -3097,14 +3097,23 @@ const EX = {
 async function openExportModal() {
   if (!G.currentUuid) { alert('Zuerst einen Beat generieren.'); return; }
 
-  // Formate und ffmpeg-Status laden (einmalig)
+  // Formate und ffmpeg-Status laden (einmalig).
+  // Scheitert die Anfrage (z.B. nicht eingeloggt oder Server-Fehler), wird der Fehler sichtbar.
   if (!Object.keys(EX.formats).length) {
     try {
       const r = await fetch('/export_formats');
-      const d = await r.json();
-      EX.formats = d.formats || {};
-      EX.ffmpeg  = d.ffmpeg_available || false;
-    } catch(_) {}
+      if (!r.ok) {
+        const errEl = $('exportAudioErr');
+        if (errEl) { errEl.textContent = `⚠ Format-Liste konnte nicht geladen werden (HTTP ${r.status}). Bitte neu einloggen.`; errEl.hidden = false; }
+      } else {
+        const d = await r.json();
+        EX.formats = d.formats || {};
+        EX.ffmpeg  = d.ffmpeg_available || false;
+      }
+    } catch(e) {
+      const errEl = $('exportAudioErr');
+      if (errEl) { errEl.textContent = `⚠ Format-Liste Fehler: ${e.message}`; errEl.hidden = false; }
+    }
   }
 
   buildExportFormatGrid();
@@ -3239,7 +3248,8 @@ async function refreshQuota() {
 }
 
 async function doExportMIDI() {
-  const uuid = _exportOrigUuid();
+  // Re-Render-Kontext: groovte Version exportieren; sonst Original
+  const uuid = _exportUuid();
   if (!uuid) { alert('Kein Beat vorhanden.'); return; }
   const errEl = $('exportOtherErr');
   try {
@@ -3261,7 +3271,8 @@ async function doExportMIDI() {
 }
 
 async function doExportJSON() {
-  const uuid = _exportOrigUuid();
+  // Re-Render-Kontext: groovte Kompositionsdaten exportieren; sonst Original
+  const uuid = _exportUuid();
   if (!uuid) { alert('Kein Beat vorhanden.'); return; }
   const errEl = $('exportOtherErr');
   try {
