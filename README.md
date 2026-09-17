@@ -207,6 +207,7 @@ Nach dem Generieren oder Re-Rendern stehen folgende Exportformate zur Verfügung
 | MIDI | rohe Notendaten für die DAW |
 
 Das Kontingent wird **nur beim Speichern / Download** verbraucht, nicht beim Vorhören.
+Ist es aufgebraucht, wird stattdessen **1 Token** abgebucht (siehe *Token-Nachkauf*).
 
 ---
 

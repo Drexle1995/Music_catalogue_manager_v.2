@@ -5,7 +5,7 @@
 <p class="subtitle">Zahlungsübersicht — Status: <strong>{{ 'bezahlt' if ctx.status == 'paid' else 'offen' }}</strong>.</p>
 
 <div class="panel" style="max-width:560px;">
-  <h2>{{ 'Abo' if ctx.kind == 'subscription' else 'Lizenz' }} — {{ ctx.number }}</h2>
+  <h2>{{ {'subscription': 'Abo', 'tokens': 'Tokens'}.get(ctx.kind, 'Lizenz') }} — {{ ctx.number }}</h2>
   <table>
     <tbody>
       <tr><td>Position</td><td class="num">{{ ctx.desc }}</td></tr>
@@ -23,7 +23,10 @@
   {% if ctx.status == 'paid' %}
     <div class="hint-box" style="margin-top:16px;">Bereits bezahlt.</div>
     <div class="row-actions" style="margin-top:16px;">
-      {% if ctx.kind == 'subscription' %}
+      {% if ctx.kind == 'tokens' %}
+        <a class="btn btn-primary" href="{{ url_for('tokens.invoice', purchase_id=purchase.id) }}">Rechnung ansehen</a>
+        <a class="btn btn-ghost" href="{{ url_for('tokens.shop') }}">zum Token-Shop</a>
+      {% elif ctx.kind == 'subscription' %}
         <a class="btn btn-primary" href="{{ url_for('subscription_invoice', sub_id=sub.id) }}">Rechnung ansehen</a>
         <a class="btn btn-ghost" href="{{ url_for('users_view') }}">zu den Nutzern</a>
       {% else %}
@@ -33,7 +36,14 @@
     </div>
   {% else %}
     <div class="row-actions" style="margin-top:16px;">
-      {% if ctx.kind == 'subscription' %}
+      {% if ctx.kind == 'tokens' %}
+        <form method="post" action="{{ url_for('tokens.pay', purchase_id=purchase.id) }}" style="margin:0;">
+          <button class="btn btn-primary" type="submit">Zahlung bestätigen (simuliert)</button>
+        </form>
+        <form method="post" action="{{ url_for('tokens.cancel', purchase_id=purchase.id) }}" style="margin:0;">
+          <button class="btn btn-ghost" type="submit">Stornieren</button>
+        </form>
+      {% elif ctx.kind == 'subscription' %}
         <form method="post" action="{{ url_for('subscription_pay', sub_id=sub.id) }}" style="margin:0;">
           <button class="btn btn-primary" type="submit">Zahlung bestätigen (simuliert)</button>
         </form>

@@ -5,7 +5,9 @@ Der Music-Architect-Motor liegt ein Verzeichnis hoeher. Beide Pfade (Root und sr
 werden zu sys.path hinzugefuegt, damit die internen 'from src.*'-Imports des Motors
 ohne Aenderung aufgeloest werden koennen.
 
-Kontingent wird NUR bei /save verbraucht, niemals bei /generate. Zuhoeren ist immer frei.
+Kontingent wird NUR bei /save bzw. beim ersten Export verbraucht, niemals bei
+/generate. Zuhoeren ist immer frei. Ist das Kontingent erschoepft, wird statt-
+dessen 1 gekaufter Token abgebucht (siehe _gate_quota / commerce/tokens.py).
 """
 
 import io as _io
@@ -20,10 +22,11 @@ import wave
 from datetime import date, datetime
 
 from flask import (Blueprint, current_app, jsonify, request,
-                   send_file, session)
+                   send_file, session, url_for)
 from flask_login import current_user, login_required
 
 from db import database as db
+from commerce import tokens as _tokens
 from beatgen import export_service
 from appdata import fusion_data
 from appdata import palette_data as _palette_data
@@ -121,6 +124,42 @@ def _quota_remaining(user_id: int, tier: str):
     monthly_rem = (max(monthly_limit - monthly_used, 0)
                    if monthly_limit is not None else None)
     return daily_rem, monthly_rem, daily_used, monthly_used
+
+
+def _gate_quota(reference: str):
+    """
+    Gemeinsames Kontingent-Gate fuer /save, /export_audio und /export_midi.
+
+    * Kontingent frei          -> (None, False)
+    * Kontingent erschoepft,
+      Token-Guthaben vorhanden -> 1 Token wird abgebucht, (None, True)
+    * sonst                    -> (429-JSON-Antwort, False)
+
+    Das Kontingent (quota_ledger) wird vom Aufrufer in jedem Fall weiter
+    hochgezaehlt, damit die Statistik alle Speichervorgaenge enthaelt.
+    """
+    tier = current_user.tier
+    daily_rem, monthly_rem, _, _ = _quota_remaining(current_user.id, tier)
+    if daily_rem > 0 and (monthly_rem is None or monthly_rem > 0):
+        return None, False
+
+    if _tokens.consume(current_user.id, 1, reference=reference):
+        return None, True
+
+    if daily_rem <= 0:
+        limit = _PRO_DAILY if tier == "pro" else _FREE_DAILY
+        msg = f"Tageslimit erreicht ({limit}/Tag im {tier}-Tarif)."
+    else:
+        msg = f"Monatslimit erreicht ({_PRO_MONTHLY}/Monat im {tier}-Tarif)."
+    offer = _tokens.price_for(current_user.id)
+    return (jsonify({
+        "error":         "quota_exceeded",
+        "message":       (f"{msg} Kein Token-Guthaben — weitere Sounds sind mit "
+                          f"Tokens möglich ({_tokens.fmt_eur(offer['unit_price'])} je Token)."),
+        "token_balance": 0,
+        "token_price":   offer["unit_price"],
+        "buy_url":       url_for("tokens.shop"),
+    }), 429), False
 
 
 def _read_seed_from_session(audio_uuid: str) -> int | None:
@@ -248,6 +287,7 @@ def generate_page():
         tier                 = current_user.tier,
         daily_remaining      = daily_rem,
         monthly_remaining    = monthly_rem,
+        token_balance        = _tokens.balance(current_user.id),
         _instruments         = _INSTRUMENTS,
         _fusion_presets      = _FUSION_PRESETS,
         _fusion_genres       = fusion_data.AVAILABLE_GENRES,
@@ -688,27 +728,18 @@ def save_track():
 
     genre = session.get(f"temp_genre_{audio_uuid}", "unknown")
 
-    # --- Kontingent-Pruefung ------------------------------------------------
+    # --- Kontingent-Pruefung (ggf. Token-Abbuchung) --------------------------
     today = date.today().isoformat()
     tier  = current_user.tier
-    daily_rem, monthly_rem, _, _ = _quota_remaining(current_user.id, tier)
-
-    if daily_rem <= 0:
-        limit = _PRO_DAILY if tier == "pro" else _FREE_DAILY
-        return jsonify({
-            "error":   "quota_exceeded",
-            "message": f"Tageslimit erreicht ({limit}/Tag im {tier}-Tarif).",
-        }), 429
-
-    if monthly_rem is not None and monthly_rem <= 0:
-        return jsonify({
-            "error":   "quota_exceeded",
-            "message": f"Monatslimit erreicht ({_PRO_MONTHLY}/Monat im {tier}-Tarif).",
-        }), 429
+    blocked, used_token = _gate_quota(reference=f"save:{audio_uuid}")
+    if blocked:
+        return blocked
 
     # --- In dauerhaften Speicher kopieren -----------------------------------
     wav_src = pathlib.Path(wav_str)
     if not wav_src.exists():
+        if used_token:
+            _tokens.refund(current_user.id, 1, reference=f"save:{audio_uuid}")
         return jsonify({"error": "not_found",
                         "message": "Temporaere Datei fehlt. Bitte neu generieren."}), 400
 
@@ -742,15 +773,18 @@ def save_track():
         conn.rollback()
         conn.close()
         dest_path.unlink(missing_ok=True)
+        if used_token:
+            _tokens.refund(current_user.id, 1, reference=f"save:{audio_uuid}")
         return jsonify({"error": str(exc)}), 500
 
     conn.close()
 
     db.log_event("SAVE", "track", track_id, {
-        "user_id": current_user.id,
-        "name":    name,
-        "genre":   genre,
-        "file":    str(dest_path),
+        "user_id":    current_user.id,
+        "name":       name,
+        "genre":      genre,
+        "file":       str(dest_path),
+        "used_token": used_token,
     })
 
     # --- Kontingent erhoehen -----------------------------------------------
@@ -773,6 +807,8 @@ def save_track():
         "track_id":          track_id,
         "quota_remaining":   daily_rem_new,
         "monthly_remaining": monthly_rem_new,
+        "used_token":        used_token,
+        "token_balance":     _tokens.balance(current_user.id),
     })
 
 
@@ -1066,27 +1102,16 @@ def export_audio_route(audio_uuid: str):
     exported_key = f"exported_{origin_uuid}"
     if not session.get(exported_key):
         today = date.today().isoformat()
-        tier  = current_user.tier
-        daily_rem, monthly_rem, _, _ = _quota_remaining(current_user.id, tier)
-
-        if daily_rem <= 0:
-            limit = _PRO_DAILY if tier == "pro" else _FREE_DAILY
-            return jsonify({
-                "error":   "quota_exceeded",
-                "message": f"Tageslimit erreicht ({limit}/Tag im {tier}-Tarif).",
-            }), 429
-
-        if monthly_rem is not None and monthly_rem <= 0:
-            return jsonify({
-                "error":   "quota_exceeded",
-                "message": f"Monatslimit erreicht ({_PRO_MONTHLY}/Monat im {tier}-Tarif).",
-            }), 429
+        blocked, used_token = _gate_quota(reference=f"export:{origin_uuid}")
+        if blocked:
+            return blocked
 
         _persist_track(audio_uuid, current_user.id)
         db.increment_quota(current_user.id, today)
         db.log_event("EXPORT", "audio", audio_uuid, {
-            "user_id": current_user.id,
-            "format":  fmt_key,
+            "user_id":    current_user.id,
+            "used_token": used_token,
+            "format":     fmt_key,
             "genre":   session.get(f"temp_genre_{audio_uuid}", "beat"),
         })
         session[exported_key] = True
@@ -1134,26 +1159,15 @@ def export_midi_route(audio_uuid: str):
     exported_key = f"exported_{origin_uuid}"
     if not session.get(exported_key):
         today = date.today().isoformat()
-        tier  = current_user.tier
-        daily_rem, monthly_rem, _, _ = _quota_remaining(current_user.id, tier)
-
-        if daily_rem <= 0:
-            limit = _PRO_DAILY if tier == "pro" else _FREE_DAILY
-            return jsonify({
-                "error":   "quota_exceeded",
-                "message": f"Tageslimit erreicht ({limit}/Tag im {tier}-Tarif).",
-            }), 429
-
-        if monthly_rem is not None and monthly_rem <= 0:
-            return jsonify({
-                "error":   "quota_exceeded",
-                "message": f"Monatslimit erreicht ({_PRO_MONTHLY}/Monat im {tier}-Tarif).",
-            }), 429
+        blocked, used_token = _gate_quota(reference=f"export:{origin_uuid}")
+        if blocked:
+            return blocked
 
         _persist_track(audio_uuid, current_user.id)
         db.increment_quota(current_user.id, today)
         db.log_event("EXPORT", "midi", audio_uuid, {
-            "user_id": current_user.id,
+            "user_id":    current_user.id,
+            "used_token": used_token,
             "genre":   session.get(f"temp_genre_{audio_uuid}", "beat"),
         })
         session[exported_key] = True
@@ -1316,10 +1330,14 @@ def theory_score_route():
 @login_required
 def quota():
     daily_rem, monthly_rem, _, _ = _quota_remaining(current_user.id, current_user.tier)
+    offer = _tokens.price_for(current_user.id)
     return jsonify({
         "daily_remaining":   daily_rem,
         "monthly_remaining": monthly_rem,
         "tier":              current_user.tier,
+        "token_balance":     _tokens.balance(current_user.id),
+        "token_price":       offer["unit_price"],
+        "token_price_group": offer["group"],
     })
 
 

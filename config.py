@@ -101,3 +101,20 @@ DEFAULT_BILLING = {
 
 # Waehlbare Abo-Laufzeiten (Monate) fuer den Checkout.
 SUBSCRIPTION_TERMS = [1, 3, 12]
+
+
+# ---------------------------------------------------------------------------
+# Token-Nachkauf (Generierung ueber das Kontingent hinaus)
+# ---------------------------------------------------------------------------
+# Ist das Tages-/Monatskontingent aufgebraucht, verbraucht jede weitere
+# Generierung (bzw. jeder weitere Speichervorgang) genau 1 Token.
+# Abonnenten zahlen pro Token weniger als Basis-Nutzer. Die Preise sind
+# Nettopreise in EUR und in den Einstellungen editierbar; dort wird auch
+# erzwungen, dass der Abo-Preis unter dem Basis-Preis liegt.
+DEFAULT_TOKENS = {
+    "token_price_basic":      "1.49",   # EUR netto pro Token ohne Abo
+    "token_price_subscriber": "0.99",   # EUR netto pro Token mit aktivem Abo
+}
+
+# Waehlbare Paketgroessen (Anzahl Tokens) im Token-Shop.
+TOKEN_PACKAGES = [1, 5, 10, 25]

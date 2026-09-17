@@ -70,6 +70,22 @@
   </div>
 
   <div class="panel">
+    <h2>Token-Nachkauf</h2>
+    <p class="muted small">Netto-Stückpreis je Token, wenn das Kontingent aufgebraucht ist.
+      Der Abo-Preis muss unter dem Basis-Preis liegen.</p>
+    <div class="grid grid-3">
+      <div>
+        <label>Token-Preis Basis (€)</label>
+        <input type="number" step="0.01" min="0.01" name="token_price_basic" value="{{ s.token_price_basic }}">
+      </div>
+      <div>
+        <label>Token-Preis Abo (€)</label>
+        <input type="number" step="0.01" min="0.01" name="token_price_subscriber" value="{{ s.token_price_subscriber }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>Music Architect (Echtbetrieb)</h2>
     <label>Aufrufbefehl — leer = Simulationsmodus</label>
     <input type="text" name="music_architect_cmd" value="{{ s.music_architect_cmd }}"

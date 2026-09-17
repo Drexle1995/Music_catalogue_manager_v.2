@@ -69,6 +69,19 @@ def is_active_subscriber(user):
     return (not end) or (end >= date.today().isoformat())
 
 
+def has_subscription(user):
+    """
+    Einheitliche Abo-Pruefung fuer die Token-Preise.
+    Beruecksichtigt beide Abo-Kennzeichen der Anwendung:
+      * Admin-/Billing-Abo: is_subscriber = 1 mit gueltiger Laufzeit (sub_end)
+      * Web-Tarif:          users.tier = 'pro'
+    """
+    if not user:
+        return False
+    tier = user["tier"] if "tier" in user.keys() else None
+    return tier == "pro" or is_active_subscriber(user)
+
+
 def daily_limit(user):
     """Liefert das Tageslimit fuer einen Nutzer (aktives Abo vs. Basis)."""
     if is_active_subscriber(user):
@@ -100,9 +113,11 @@ def used_today(user_id, on_day=None):
 
 def quota_status(user):
     """Gibt limit / used / remaining fuer die Anzeige zurueck."""
+    from commerce import tokens  # lokaler Import vermeidet Zirkelbezug
     limit = daily_limit(user)
     used = used_today(user["id"])
-    return {"limit": limit, "used": used, "remaining": max(limit - used, 0)}
+    return {"limit": limit, "used": used, "remaining": max(limit - used, 0),
+            "tokens": tokens.balance(user["id"])}
 
 
 def check_quota(user, count=1):

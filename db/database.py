@@ -95,6 +95,39 @@ CREATE TABLE IF NOT EXISTS quota_ledger (
     PRIMARY KEY (user_id, date)
 );
 
+-- Token-Bestellungen (dritter Umsatzstrom). Preise werden zum Bestellzeitpunkt
+-- eingefroren, damit spaetere Preisaenderungen alte Belege nicht verfaelschen.
+CREATE TABLE IF NOT EXISTS token_purchases (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    quantity         INTEGER NOT NULL CHECK (quantity > 0),
+    price_group      TEXT    NOT NULL CHECK (price_group IN ('basic', 'subscriber')),
+    unit_price       REAL    NOT NULL CHECK (unit_price >= 0),   -- tatsaechlicher Stueckpreis
+    list_unit_price  REAL    NOT NULL CHECK (list_unit_price >= 0), -- Basis-Stueckpreis (Vergleich)
+    price            REAL    NOT NULL CHECK (price >= 0),        -- quantity * unit_price (netto)
+    status           TEXT    NOT NULL DEFAULT 'open'
+                     CHECK (status IN ('open', 'paid', 'cancelled')),
+    created_at       TEXT    NOT NULL,
+    paid_at          TEXT
+);
+
+-- Token-Konto als Buchungsjournal: jede Bewegung ist eine Zeile.
+-- Kontostand = SUM(delta). Gutschrift (+) bei Kauf/Erstattung, Abbuchung (-)
+-- bei Verbrauch. Dadurch ist jeder Token lueckenlos nachvollziehbar.
+CREATE TABLE IF NOT EXISTS token_ledger (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delta        INTEGER NOT NULL CHECK (delta <> 0),
+    reason       TEXT    NOT NULL
+                 CHECK (reason IN ('purchase', 'consume', 'refund', 'admin')),
+    purchase_id  INTEGER REFERENCES token_purchases(id) ON DELETE SET NULL,
+    reference    TEXT,                           -- z.B. audio_uuid oder Gateway-Lauf
+    created_at   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_ledger_user     ON token_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_token_purchases_user  ON token_purchases(user_id);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -132,6 +165,7 @@ def init_db():
     defaults.update(config.DEFAULT_ECONOMICS)
     defaults.update(config.DEFAULT_SUBSCRIPTION)
     defaults.update(config.DEFAULT_BILLING)
+    defaults.update(config.DEFAULT_TOKENS)
     defaults["catalog_dir"] = config.DEFAULT_CATALOG_DIR
     defaults["export_dir"] = config.DEFAULT_EXPORT_DIR
     defaults["music_architect_cmd"] = config.DEFAULT_MA_COMMAND

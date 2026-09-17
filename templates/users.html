@@ -24,7 +24,7 @@
   {% if rows %}
   <table>
     <thead>
-      <tr><th>Name</th><th>Abo-Status</th><th class="num">Bezüge heute</th><th>Generieren</th><th>Abo buchen</th></tr>
+      <tr><th>Name</th><th>Abo-Status</th><th class="num">Bezüge heute</th><th class="num">Tokens</th><th>Generieren</th><th>Abo buchen</th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
@@ -42,12 +42,19 @@
           {{ r.st.used }}/{{ r.st.limit }}
           <span class="muted small">({{ r.st.remaining }} frei)</span>
         </td>
+        <td class="num">
+          {{ r.st.tokens }}
+          <form method="post" action="{{ url_for('users_tokens', user_id=r.u.id) }}" class="row-actions" style="margin:4px 0 0;justify-content:flex-end;">
+            <input type="number" name="amount" value="5" style="width:64px;padding:4px 6px;" title="Positiv = gutschreiben, negativ = abziehen">
+            <button class="btn btn-ghost btn-sm" type="submit">±</button>
+          </form>
+        </td>
         <td>
           <form method="post" action="{{ url_for('generate_track') }}" class="row-actions" style="margin:0;">
             <input type="hidden" name="user_id" value="{{ r.u.id }}">
             <input type="number" name="count" value="1" min="1" style="width:64px;padding:6px 8px;">
             <button class="btn btn-ghost" type="submit"
-              {{ 'disabled style=opacity:.4;cursor:not-allowed;' if r.st.remaining == 0 }}>▶</button>
+              {{ 'disabled style=opacity:.4;cursor:not-allowed;' if r.st.remaining == 0 and r.st.tokens == 0 }}>▶</button>
           </form>
         </td>
         <td>
@@ -70,9 +77,37 @@
   {% endif %}
   <p class="muted small" style="margin-top:12px;">
     „Bezüge heute“ zählt Generierungen <em>und</em> gekaufte Lizenzen zusammen gegen den
-    Tages-Topf (3 Basis / 10 Abo). „Buchen“ öffnet den simulierten Abo-Checkout; „▶“ erzeugt
-    Tracks über den Gateway. Beide Aktionen sind gesperrt, sobald der Topf leer ist.
+    Tages-Topf ({{ limits.free }} Basis / {{ limits.sub }} Abo). „Buchen“ öffnet den simulierten
+    Abo-Checkout; „▶“ erzeugt Tracks über den Gateway. Ist der Topf leer, deckt der Gateway
+    weitere Tracks mit Tokens; „▶“ ist erst gesperrt, wenn auch kein Token-Guthaben mehr da ist.
+    „±“ schreibt Tokens gut (positiv) oder zieht sie ab (negativ).
   </p>
+  <p class="muted small">
+    Token-Preise: Basis {{ token_prices.basic | euro }} · Abo {{ token_prices.subscriber | euro }} je Token (netto).
+  </p>
+</div>
+
+<div class="panel">
+  <h2>Letzte Token-Bestellungen</h2>
+  {% if token_purchases %}
+  <table>
+    <thead><tr><th>Nr.</th><th>Nutzer</th><th class="num">Menge</th><th>Preisgruppe</th><th class="num">Netto</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for p in token_purchases %}
+      <tr>
+        <td class="mono">T-{{ '%05d' % p.id }}</td>
+        <td>{{ p.user_name }}</td>
+        <td class="num">{{ p.quantity }}</td>
+        <td>{{ 'Abo' if p.price_group == 'subscriber' else 'Basis' }} · {{ p.unit_price | euro }}</td>
+        <td class="num">{{ p.price | euro }}</td>
+        <td>{{ {'paid': 'bezahlt', 'open': 'offen', 'cancelled': 'storniert'}[p.status] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Token-Bestellungen.</p>
+  {% endif %}
 </div>
 
 <div class="panel">

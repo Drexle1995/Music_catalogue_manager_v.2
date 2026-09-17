@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Tokens · SBS Catalog{% endblock %}
+{% block content %}
+<h1>Tokens</h1>
+<p class="subtitle">
+  Kontingent aufgebraucht? Mit Tokens kannst du weitere Sounds speichern und exportieren —
+  jeder Beat über dem Limit verbraucht genau 1 Token. Tokens verfallen nicht.
+</p>
+
+<div class="grid grid-3">
+  <div class="kpi">
+    <div class="label">Dein Guthaben</div>
+    <div class="value cyan">{{ balance }}<span class="muted" style="font-size:14px;"> Token(s)</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Dein Preis je Token</div>
+    <div class="value green">{{ offer.unit_price | euro }}</div>
+    <div class="hint">
+      {% if offer.group == 'subscriber' %}Abo-Preis (statt {{ offer.list_unit_price | euro }})
+      {% else %}Basis-Preis{% endif %} · zzgl. USt
+    </div>
+  </div>
+  <div class="kpi">
+    <div class="label">Abo-Vorteil</div>
+    <div class="value pink">−{{ saving_pct }} %</div>
+    <div class="hint">Abo {{ prices.subscriber | euro }} · Basis {{ prices.basic | euro }} je Token</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Tokens kaufen</h2>
+  <div class="grid grid-4">
+    {% for pkg in packages %}
+    <form method="post" action="{{ url_for('tokens.buy') }}" class="kpi" style="margin:0;">
+      <input type="hidden" name="quantity" value="{{ pkg.quantity }}">
+      <div class="label">{{ pkg.quantity }} Token{{ 's' if pkg.quantity != 1 }}</div>
+      <div class="value">{{ pkg.price | euro }}</div>
+      {% if offer.group == 'subscriber' %}
+        <div class="hint"><s>{{ pkg.list_price | euro }}</s> ohne Abo</div>
+      {% endif %}
+      <button class="btn btn-primary btn-sm" type="submit" style="margin-top:8px;">Kaufen</button>
+    </form>
+    {% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('tokens.buy') }}" class="row-actions" style="margin-top:16px;">
+    <label style="margin:0;">Eigene Menge</label>
+    <input type="number" name="quantity" value="3" min="1" max="{{ max_quantity }}" style="width:90px;padding:6px 8px;">
+    <button class="btn btn-ghost" type="submit">Zur Kasse</button>
+  </form>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <h2>Meine Bestellungen</h2>
+    {% if purchases %}
+    <table>
+      <thead><tr><th>Nr.</th><th class="num">Menge</th><th class="num">Netto</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for p in purchases %}
+        <tr>
+          <td class="mono">T-{{ '%05d' % p.id }}<div class="muted small">{{ p.created_at }}</div></td>
+          <td class="num">{{ p.quantity }}</td>
+          <td class="num">{{ p.price | euro }}</td>
+          <td>
+            {% if p.status == 'paid' %}<span class="badge badge-available">bezahlt</span>
+            {% elif p.status == 'open' %}<span class="badge badge-leased">offen</span>
+            {% else %}<span class="badge badge-exclusive_sold">storniert</span>{% endif %}
+          </td>
+          <td>
+            {% if p.status == 'paid' %}
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('tokens.invoice', purchase_id=p.id) }}">Rechnung</a>
+            {% elif p.status == 'open' %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('tokens.checkout', purchase_id=p.id) }}">Bezahlen</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Bestellungen.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Token-Bewegungen</h2>
+    {% if ledger %}
+    <table>
+      <thead><tr><th>Zeit</th><th>Vorgang</th><th class="num">Tokens</th></tr></thead>
+      <tbody>
+        {% set labels = {'purchase': 'Kauf', 'consume': 'Verbrauch', 'refund': 'Erstattung', 'admin': 'Gutschrift (Admin)'} %}
+        {% for e in ledger %}
+        <tr>
+          <td class="muted small">{{ e.created_at }}</td>
+          <td>{{ labels.get(e.reason, e.reason) }}</td>
+          <td class="num">{{ '+' if e.delta > 0 }}{{ e.delta }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Bewegungen.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

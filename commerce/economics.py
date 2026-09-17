@@ -65,7 +65,21 @@ def compute():
         "SELECT COALESCE(SUM(price), 0) s FROM subscriptions WHERE status = 'paid'"
     ).fetchone()["s"]
 
-    revenue_total = license_revenue + subscription_revenue
+    # Token-Umsatz (dritter Erloesstrom: Nachkauf ueber das Kontingent hinaus).
+    token_revenue = conn.execute(
+        "SELECT COALESCE(SUM(price), 0) s FROM token_purchases WHERE status = 'paid'"
+    ).fetchone()["s"]
+    tokens_sold = conn.execute(
+        "SELECT COALESCE(SUM(quantity), 0) s FROM token_purchases WHERE status = 'paid'"
+    ).fetchone()["s"]
+    token_open = conn.execute(
+        "SELECT COUNT(*) c, COALESCE(SUM(price), 0) s FROM token_purchases "
+        "WHERE status = 'open'"
+    ).fetchone()
+    open_amount += token_open["s"]
+    open_count += token_open["c"]
+
+    revenue_total = license_revenue + subscription_revenue + token_revenue
 
     # Summe der gewaehrten Abo-Rabatte (nur bezahlte Lizenzen).
     discounts_total = conn.execute(
@@ -119,6 +133,8 @@ def compute():
         "revenue_total": revenue_total,
         "license_revenue": license_revenue,
         "subscription_revenue": subscription_revenue,
+        "token_revenue": token_revenue,
+        "tokens_sold": tokens_sold,
         "open_amount": open_amount,
         "open_count": open_count,
         "discounts_total": discounts_total,

@@ -15,6 +15,9 @@
         {% if monthly_remaining is not none %}
           · <span id="quotaMonthly">{{ monthly_remaining }}</span> diesen Monat
         {% endif %}
+        · <span id="quotaTokens">{{ token_balance }}</span> Tokens
+        <a href="{{ url_for('tokens.shop') }}" class="quota-buy"
+           data-tooltip="Kontingent aufgebraucht? Mit Tokens kannst du weitere Beats speichern und exportieren.">+ kaufen</a>
       </span>
       <span class="tier-badge tier-{{ tier }}">{{ tier|upper }}</span>
     </div>
@@ -922,6 +925,9 @@ body  { overflow:hidden; }
 }
 .quota-label { color:var(--tx3); font-weight:700; letter-spacing:.1em; text-transform:uppercase; font-size:.6rem; font-family:var(--mono); }
 .quota-counts { color:var(--tx2); flex:1; font-family:var(--mono); font-size:.7rem; }
+.quota-buy { color:var(--vl); text-decoration:none; margin-left:.3rem; white-space:nowrap; }
+.quota-buy:hover { text-decoration:underline; }
+.export-err a { color:var(--vl); margin-left:.35rem; }
 .tier-badge { padding:.1rem .48rem; border-radius:3px; font-size:.58rem; font-weight:700; letter-spacing:.08em; font-family:var(--mono); }
 .tier-free { background:rgba(255,255,255,0.04); color:var(--tx3); border:1px solid var(--line); }
 .tier-pro  { background:rgba(124,109,234,0.14); color:var(--vl); border:1px solid rgba(124,109,234,0.3); }
@@ -3215,8 +3221,7 @@ async function doExportAudio() {
     if (!res.ok) {
       const d = await res.json().catch(()=>({}));
       // Lesbare Fehlermeldung anzeigen (message bevorzugt vor error-Code)
-      if (errEl) { errEl.textContent = '⚠ ' + (d.message || d.error || 'Fehler beim Exportieren.'); errEl.hidden = false; }
-      if (d.error === 'quota_exceeded') refreshQuota(); // Kontingent-Anzeige aktualisieren
+      showExportError(errEl, d, 'Fehler beim Exportieren.');
       return;
     }
     // Datei-Download: Blob aus Response holen
@@ -3237,6 +3242,21 @@ async function doExportAudio() {
   }
 }
 
+// Export-Fehler anzeigen; bei erschoepftem Kontingent Link zum Token-Shop anhaengen.
+function showExportError(errEl, d, fallback) {
+  if (!errEl) return;
+  errEl.textContent = '⚠ ' + (d.message || d.error || fallback);
+  if (d.error === 'quota_exceeded') {
+    if (d.buy_url) {
+      const a = document.createElement('a');
+      a.href = d.buy_url; a.textContent = 'Tokens kaufen →';
+      errEl.appendChild(a);
+    }
+    refreshQuota();
+  }
+  errEl.hidden = false;
+}
+
 // Kontingent-Anzeige aus dem Server neu laden
 async function refreshQuota() {
   try {
@@ -3244,6 +3264,7 @@ async function refreshQuota() {
     const d = await res.json();
     const qd = $('quotaDaily');   if (qd) qd.textContent = d.daily_remaining   ?? '?';
     const qm = $('quotaMonthly'); if (qm) qm.textContent = d.monthly_remaining ?? '?';
+    const qt = $('quotaTokens');  if (qt) qt.textContent = d.token_balance     ?? '?';
   } catch(e) { /* Stilles Scheitern — Anzeige bleibt unveraendert */ }
 }
 
@@ -3256,7 +3277,7 @@ async function doExportMIDI() {
     const res = await fetch(`/export_midi/${uuid}`);
     if (!res.ok) {
       const d = await res.json().catch(()=>({}));
-      if(errEl){errEl.textContent='⚠ '+(d.error||'MIDI-Export fehlgeschlagen.');errEl.hidden=false;}
+      showExportError(errEl, d, 'MIDI-Export fehlgeschlagen.');
       return;
     }
     const blob = await res.blob();
@@ -3267,6 +3288,7 @@ async function doExportMIDI() {
     document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),5000);
     if(errEl) errEl.hidden=true;
+    refreshQuota();
   } catch(e){ if(errEl){errEl.textContent='⚠ '+e.message;errEl.hidden=false;} }
 }
 

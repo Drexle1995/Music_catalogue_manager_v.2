@@ -192,7 +192,7 @@ def pay_subscription(sub_id):
 def invoice_context(kind, obj):
     """
     Baut die generischen Rechnungsdaten fuer die Ansicht.
-    kind: 'license' oder 'subscription'. obj: der jeweilige DB-Row.
+    kind: 'license', 'subscription' oder 'tokens'. obj: der jeweilige DB-Row.
     """
     seller = db.get_setting("seller_name", "SBS Sound Studio")
     if kind == "license":
@@ -205,6 +205,20 @@ def invoice_context(kind, obj):
         number = f"L-{obj['id']:05d}"
         status = obj["payment_status"]
         dt = obj["paid_at"] or obj["sold_at"]
+    elif kind == "tokens":
+        is_sub = obj["price_group"] == "subscriber"
+        from commerce.tokens import fmt_eur
+        desc = (f"{obj['quantity']} Generierungs-Token à {fmt_eur(obj['unit_price'])} "
+                f"({'Abo-Preis' if is_sub else 'Basis-Preis'})")
+        buyer = obj["user_name"] or obj["user_email"]
+        net = obj["price"]
+        list_price = round(obj["list_unit_price"] * obj["quantity"], 2)
+        discount_pct = 0
+        if is_sub and obj["list_unit_price"] > 0:
+            discount_pct = round((1 - obj["unit_price"] / obj["list_unit_price"]) * 100, 1)
+        number = f"T-{obj['id']:05d}"
+        status = obj["status"]
+        dt = obj["paid_at"] or obj["created_at"]
     else:
         desc = f"Abo — Laufzeit {obj['term_months']} Monat(e) ({obj['start_date']} bis {obj['end_date']})"
         buyer = obj["user_name"]

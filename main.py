@@ -26,6 +26,8 @@ from commerce import economics
 from commerce import gateway
 from commerce import licensing
 from commerce import quota
+from commerce import tokens
+from commerce.token_shop import tokens_bp
 from catalog import scanner
 from db.demo_data import generate as generate_demo
 from auth.auth import auth_bp, User
@@ -70,6 +72,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(generate_bp)
 app.register_blueprint(sample_upload_bp)
 app.register_blueprint(stats_bp)
+app.register_blueprint(tokens_bp)
 
 # Datenbank beim Import initialisieren (idempotent).
 db.init_db()
@@ -250,8 +253,18 @@ def settings_view():
         keys = ["catalog_dir", "export_dir", "dev_hours", "hourly_rate",
                 "tooling_cost", "cost_per_track", "music_architect_cmd",
                 "limit_free", "limit_subscriber", "discount_pct",
-                "seller_name", "vat_pct", "sub_price_month"]
+                "seller_name", "vat_pct", "sub_price_month",
+                "token_price_basic", "token_price_subscriber"]
         keys += [f"price_{k}" for k in config.DEFAULT_TIERS]
+        # Token-Preise vor dem Speichern pruefen: Abo muss guenstiger sein.
+        if "token_price_basic" in request.form or "token_price_subscriber" in request.form:
+            current = tokens.get_prices()
+            err = tokens.validate_prices(
+                request.form.get("token_price_basic", current["basic"]),
+                request.form.get("token_price_subscriber", current["subscriber"]))
+            if err:
+                flash(err + " Einstellungen wurden nicht gespeichert.", "error")
+                return redirect(url_for("settings_view"))
         changed = {}
         for key in keys:
             if key in request.form:
@@ -318,7 +331,24 @@ def users_view():
               "discount": db.get_setting("discount_pct")}
     terms = [{"months": m, "price": billing.subscription_price(m)}
              for m in config.SUBSCRIPTION_TERMS]
-    return render_template("users.html", rows=rows, limits=limits, terms=terms)
+    token_prices = tokens.get_prices()
+    return render_template("users.html", rows=rows, limits=limits, terms=terms,
+                           token_prices=token_prices,
+                           token_purchases=tokens.list_purchases(limit=20))
+
+
+@app.route("/users/<int:user_id>/tokens", methods=["POST"])
+@login_required
+@require_admin
+def users_tokens(user_id):
+    """Admin: Tokens manuell gutschreiben (positiv) oder abziehen (negativ)."""
+    try:
+        tokens.admin_adjust(user_id, int(request.form.get("amount", "0")),
+                            admin_id=current_user.id)
+        flash("Token-Guthaben angepasst.", "success")
+    except (ValueError, tokens.TokenError) as exc:
+        flash(str(exc) or "Ungueltiger Betrag.", "error")
+    return redirect(url_for("users_view"))
 
 
 # --- Abo-Checkout -----------------------------------------------------------
@@ -408,9 +438,11 @@ def generate_track():
         count = 1
     res = gateway.run_generation(user_id, count=count)
     if res["ok"]:
+        token_note = (f" {res['tokens_used']} Token(s) verbraucht."
+                      if res.get("tokens_used") else "")
         flash(f"[{res['mode']}] {res['count']} Track(s) fuer {res['user']} erzeugt. "
               f"Heute {res['status']['used']}/{res['status']['limit']} "
-              f"(noch {res['status']['remaining']}). Zum Uebernehmen: Scannen.",
+              f"(noch {res['status']['remaining']}).{token_note} Zum Uebernehmen: Scannen.",
               "success")
     else:
         flash(res["error"], "error")

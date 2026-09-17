@@ -8,7 +8,7 @@
   <div class="kpi">
     <div class="label">Umsatz (netto, bezahlt)</div>
     <div class="value green">{{ m.revenue_total | euro }}</div>
-    <div class="hint">Lizenzen {{ m.license_revenue | euro }} · Abos {{ m.subscription_revenue | euro }}</div>
+    <div class="hint">Lizenzen {{ m.license_revenue | euro }} · Abos {{ m.subscription_revenue | euro }} · Tokens {{ m.token_revenue | euro }}</div>
   </div>
   <div class="kpi">
     <div class="label">Offene Beträge</div>
@@ -33,6 +33,7 @@
     <tbody>
       <tr><td>Umsatz aus Lizenzen (bezahlt)</td><td class="num">{{ m.license_revenue | euro }}</td></tr>
       <tr><td>Umsatz aus Abos (bezahlt)</td><td class="num">{{ m.subscription_revenue | euro }}</td></tr>
+      <tr><td>Umsatz aus Tokens ({{ m.tokens_sold }} Stück, bezahlt)</td><td class="num">{{ m.token_revenue | euro }}</td></tr>
       <tr><td><strong>= Umsatz gesamt</strong></td><td class="num"><strong>{{ m.revenue_total | euro }}</strong></td></tr>
       <tr><td>− Variable Kosten ({{ m.track_count }} Tracks × {{ m.costs.cost_per_track | euro }})</td><td class="num">− {{ m.variable_cost | euro }}</td></tr>
       <tr><td><strong>= Deckungsbeitrag</strong></td><td class="num"><strong>{{ m.contribution_margin | euro }}</strong></td></tr>

@@ -26,6 +26,10 @@
          class="{{ 'active' if request.endpoint == 'stats.stats_page' }}">
         Statistik
       </a>
+      <a href="{{ url_for('tokens.shop') }}"
+         class="{{ 'active' if request.endpoint and request.endpoint.startswith('tokens.') }}">
+        Tokens
+      </a>
 
       <!-- Admin-Routen: nur fuer Administratoren anzeigen -->
       {% if current_user.is_authenticated and current_user.is_admin %}
