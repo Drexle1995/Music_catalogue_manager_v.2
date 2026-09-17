@@ -11,6 +11,8 @@ import os
 import sqlite3
 from datetime import datetime
 
+from werkzeug.security import generate_password_hash
+
 import config
 
 
@@ -229,6 +231,16 @@ def init_db():
                      "VALUES (?, ?, 1, ?)", ("Abo-Kunde (Demo)", "abo@example.com", now))
         conn.execute("INSERT INTO users (name, email, is_subscriber, created_at) "
                      "VALUES (?, ?, 0, ?)", ("Basis-Kunde (Demo)", "basis@example.com", now))
+
+    # --- Fest eingetragener Admin-Account (wird immer sichergestellt) --------
+    admin = conn.execute("SELECT id FROM users WHERE email = 'admin@admin.com'").fetchone()
+    if not admin:
+        now = datetime.now().isoformat(timespec="seconds")
+        conn.execute(
+            "INSERT INTO users (name, email, password_hash, is_subscriber, is_admin, created_at) "
+            "VALUES (?, ?, ?, 0, 1, ?)",
+            ("Admin", "admin@admin.com", generate_password_hash("admin123"), now),
+        )
 
     conn.commit()
     conn.close()
